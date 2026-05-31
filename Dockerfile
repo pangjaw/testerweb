@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Menggunakan mesin Python versi ringan
 FROM python:3.9-slim
 
@@ -21,4 +22,29 @@ COPY . .
 EXPOSE 8502
 
 # Perintah otomatis saat kontainer menyala
+=======
+# Menggunakan mesin Python versi ringan
+FROM python:3.9-slim
+
+# Mengatur lokasi kerja di dalam kontainer
+WORKDIR /app
+
+# Menginstal Poppler dan Tesseract OCR versi Linux (otomatis tanpa klik Next/Finish)
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Menyalin daftar kebutuhan dan menginstalnya
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Menyalin seluruh file script dan animasi ke dalam kontainer
+COPY . .
+
+# Membuka pintu 8502
+EXPOSE 8502
+
+# Perintah otomatis saat kontainer menyala
+>>>>>>> 175e4424f34f624ad9c8bf0f0aa15e1e99aec98c
 CMD ["streamlit", "run", "app.py", "--server.port", "8502", "--server.headless", "true"]

@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # Menggunakan mesin Python versi ringan
 FROM python:3.9-slim
 
@@ -22,7 +22,7 @@ COPY . .
 EXPOSE 8502
 
 # Perintah otomatis saat kontainer menyala
-=======
+
 # Menggunakan mesin Python versi ringan
 FROM python:3.9-slim
 
@@ -46,5 +46,5 @@ COPY . .
 EXPOSE 8502
 
 # Perintah otomatis saat kontainer menyala
->>>>>>> 175e4424f34f624ad9c8bf0f0aa15e1e99aec98c
+
 CMD ["streamlit", "run", "app.py", "--server.port", "8502", "--server.headless", "true", "--server.runOnSave=true"]

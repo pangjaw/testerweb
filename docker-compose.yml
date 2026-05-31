@@ -5,4 +5,6 @@ services:
     container_name: web-tester
     ports:
       - "8502:8502" # Sesuaikan angka depan dengan port yang kamu mau
+    volumes:
+      - .:/app
     restart: always

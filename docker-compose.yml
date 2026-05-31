@@ -1,0 +1,8 @@
+version: '3.8'
+services:
+  web:
+    build: .
+    container_name: web-tester
+    ports:
+      - "8502:8502" # Sesuaikan angka depan dengan port yang kamu mau
+    restart: always

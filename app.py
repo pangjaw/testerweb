@@ -31,7 +31,7 @@ is_admin = st.query_params.get("mode") == "admin"
 
 # --- 3. TAMPILAN UTAMA ---
 st.set_page_config(page_title="Sintelis 1.21 BOO Utility", page_icon="📑", layout="wide")
-st.title("📑 GANTI NAMA PDFs CEKLIS SINTELIS")
+st.title("📑 Tester Web")
 
 col1, col2 = st.columns([1, 1], gap="large")
 

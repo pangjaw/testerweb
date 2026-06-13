@@ -30,50 +30,48 @@ if uploaded_files:
         for f in uploaded_files:
             name_only = f.name.upper()
             
-            # 1. Ambil Tanggal dari Nama File Asli
+            # Ambil Tanggal dari Nama File Asli
             tgl_match = re.search(r'(\d{2})-(\d{2})-(\d{4})', name_only)
             if not tgl_match:
                 duplicate_errors.append(f"❌ `{f.name}`: Format tanggal (DD-MM-YYYY) tidak ditemukan.")
                 continue
             tgl_full = tgl_match.group(0)
 
-            # 2. Proses OCR
+            # Proses OCR
             try:
                 images = convert_from_bytes(f.getvalue(), dpi=150, first_page=1, last_page=1)
                 img = images[0].convert('L') 
                 img = ImageOps.autocontrast(img) 
                 
                 width, height = img.size
-                # Crop area atas (0.0 sampai 0.35) untuk memastikan Judul dan Tabel Lokasi masuk
+                # Crop area atas (0.0 sampai 0.35)
                 img_cropped = img.crop((0.0, 0.0, width*1.0, height*0.35))
                 
                 text_crop = pytesseract.image_to_string(img_cropped).upper()
-                text_flat = re.sub(r'\s+', ' ', text_crop) # Ratakan spasi & enter
+                text_flat = re.sub(r'\s+', ' ', text_crop) 
                 
-                # --- LAYAR INTIP DEBUG ---
                 with st.expander(f"👀 Intip Hasil Baca OCR: {f.name}"):
                     st.write(text_flat)
                 
-                # 3. LOGIKA DETEKSI PTDS & PTLS
+                # LOGIKA DETEKSI PTDS & PTLS
                 is_ptds = "TELEKOMUNIKASI DI STASIUN" in text_flat
                 is_ptls = "TELEKOMUNIKASI DI LUAR STASIUN" in text_flat
                 
                 if is_ptds or is_ptls:
-                    # Tentukan ID dan Kode Ceklis berdasarkan deteksi
                     aid = "PTDS" if is_ptds else "PTLS"
                     kode_ceklis = "BPBKS15" if is_ptds else "BPBKS16"
                     
                     loc_code = "LOKASI"
                     
-                    # Cek nama stasiun (Termasuk tambahan Bogorpaledang)
-                    if "BOGORPALEDANG" in text_flat or "PALEDANG" in text_flat: loc_code = "PLG"
+                    # LOGIKA LOKASI UPDATE: PALEDANG WAJIB DI ATAS BOGOR
+                    if "PALEDANG" in text_flat: loc_code = "BOP"
                     elif "BOGOR" in text_flat: loc_code = "BOO"
                     elif "CILEBUT" in text_flat: loc_code = "CLT"
-                    elif "BOJONG" in text_flat or "BJD" in text_flat: loc_code = "BJD"
-                    elif "CITAYAM" in text_flat: loc_code = "CTA"
-                    elif "DEPOK" in text_flat: loc_code = "DP"
+                    elif "BATUTULIS" in text_flat: loc_code = "BTT"
+                    elif "MASENG" in text_flat: loc_code = "MSG"
+                    elif "CIOMAS" in text_flat: loc_code = "COS"
+                    elif "CIGOMBONG" in text_flat: loc_code = "CGB"
                     
-                    # RAKIT NAMA BARU (Format Uji Coba: PERAWATAN PTDS PLG 12-06-2026.pdf)
                     new_name = f"PERAWATAN {aid} {loc_code} {tgl_full}.pdf"
                     
                     zip_f.writestr(new_name, f.getvalue())

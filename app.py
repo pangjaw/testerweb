@@ -31,7 +31,7 @@ is_admin = st.query_params.get("mode") == "admin"
 
 # --- 3. TAMPILAN UTAMA ---
 st.set_page_config(page_title="Sintelis 1.21 BOO Utility", page_icon="📑", layout="wide")
-st.title("📑 Tester Web")
+st.title("📑 Tester")
 
 col1, col2 = st.columns([1, 1], gap="large")
 
@@ -122,43 +122,57 @@ if uploaded_files:
                         img = ImageOps.autocontrast(img) 
                         
                         width, height = img.size
-                        img_cropped = img.crop((0.0, height*0.05, width*1.0, height*0.25))
+                        img_cropped = img.crop((0.0, height*0.05, width*1.0, height*0.30))
                         
                         if debug_mode: st.image(img_cropped, caption=f"Scan: {f.name}")
                             
                         text_crop = pytesseract.image_to_string(img_cropped).upper()
-                        lines = [line.strip() for line in text_crop.split('\n') if line.strip()]
+                        # Normalisasi spasi dan enter agar kalimat panjang tidak terputus
+                        text_flat = re.sub(r'\s+', ' ', text_crop)
                         
-                        noise = ["PERAWATAN", "PEMERIKSAAN", "MINGGUAN", "BULANAN", "TAHUNAN", "CEKLIS", "ULANG", 
-                                 "PENGGERAK", "WESEL", "ELEKTRIK", "AXLE", "COUNTER", "SIEMENS", "PERAGA", 
-                                 "SINYAL", "SAMPEL", "NOMOR", "INTERNAL", "TERLAYAN", "SETEMPAT", "BLOK", 
-                                 "MASUK", "KELUAR", "MUKA", "DAN", "LANGSIR", "JALAN"]
+                        # --- LOGIKA BARU: INTERSEPT DOKUMEN KHUSUS PDSE ---
+                        if "PERAWATAN PERALATAN DALAM PERSINYALAN ELEKTRIK" in text_flat:
+                            loc_code = "LOKASI"
+                            if "BOGOR" in text_flat: loc_code = "BOO"
+                            elif "CILEBUT" in text_flat: loc_code = "CLT"
+                            elif "BOJONG" in text_flat or "BJD" in text_flat: loc_code = "BJD"
+                            elif "CITAYAM" in text_flat: loc_code = "CTA"
+                            elif "DEPOK" in text_flat: loc_code = "DP"
+                            
+                            kategori_nama = "" 
+                            assets_found.append({"id": "PDSE", "loc": loc_code})
+                        else:
+                            # --- LOGIKA LAMA (WESEL, AXLE, ZP, PERAGA SINYAL) TETAP BERJALAN NORMAL ---
+                            lines = [line.strip() for line in text_crop.split('\n') if line.strip()]
+                            
+                            noise = ["PERAWATAN", "PEMERIKSAAN", "MINGGUAN", "BULANAN", "TAHUNAN", "CEKLIS", "ULANG", 
+                                     "PENGGERAK", "WESEL", "ELEKTRIK", "AXLE", "COUNTER", "SIEMENS", "PERAGA", 
+                                     "SINYAL", "SAMPEL", "NOMOR", "INTERNAL", "TERLAYAN", "SETEMPAT", "BLOK", 
+                                     "MASUK", "KELUAR", "MUKA", "DAN", "LANGSIR", "JALAN"]
 
-                        for line in lines:
-                            if any(k in line for k in ["SINYAL", "BLOK", "WESEL", "AXLE", "COUNTER"]):
-                                
-                                # LOGIKA BARU: Cegat & lewati baris jika itu adalah Judul/Kop Dokumen
-                                if any(judul in line for judul in ["BULANAN", "MINGGUAN", "TAHUNAN"]):
-                                    continue
-                                
-                                clean = line.split(":")[-1].strip() if ":" in line else line.strip()
-                                words = clean.replace(".", " ").split()
-                                final = [w for w in words if w not in noise]
-                                
-                                if final:
-                                    # LOGIKA ZP TERPISAH
-                                    if final[0] == "ZP" and len(final) > 1 and any(char.isdigit() for char in final[1]):
-                                        aid = f"{final[0]} {final[1]}"
-                                        loc_id = " ".join(final[2:]) if len(final) > 2 else "LOKASI"
-                                    else:
-                                        aid = final[0]
-                                        loc_id = " ".join(final[1:]) if len(final) > 1 else "LOKASI"
+                            for line in lines:
+                                if any(k in line for k in ["SINYAL", "BLOK", "WESEL", "AXLE", "COUNTER"]):
                                     
-                                    loc_id = loc_id.replace("BUD", "BJD").strip()
+                                    if any(judul in line for judul in ["BULANAN", "MINGGUAN", "TAHUNAN"]):
+                                        continue
                                     
-                                    if target_keyword == "WESEL" and not aid.startswith("W"): aid = f"W{aid}"
-                                    elif target_keyword == "AXLE" and not aid.startswith("ZP"): aid = f"ZP{aid}"
-                                    assets_found.append({"id": aid, "loc": loc_id})
+                                    clean = line.split(":")[-1].strip() if ":" in line else line.strip()
+                                    words = clean.replace(".", " ").split()
+                                    final = [w for w in words if w not in noise]
+                                    
+                                    if final:
+                                        if final[0] == "ZP" and len(final) > 1 and any(char.isdigit() for char in final[1]):
+                                            aid = f"{final[0]} {final[1]}"
+                                            loc_id = " ".join(final[2:]) if len(final) > 2 else "LOKASI"
+                                        else:
+                                            aid = final[0]
+                                            loc_id = " ".join(final[1:]) if len(final) > 1 else "LOKASI"
+                                        
+                                        loc_id = loc_id.replace("BUD", "BJD").strip()
+                                        
+                                        if target_keyword == "WESEL" and not aid.startswith("W"): aid = f"W{aid}"
+                                        elif target_keyword == "AXLE" and not aid.startswith("ZP"): aid = f"ZP{aid}"
+                                        assets_found.append({"id": aid, "loc": loc_id})
                         
                         del img, img_cropped, images
                         gc.collect() 
@@ -171,10 +185,11 @@ if uploaded_files:
                         aloc_clean = asset["loc"].strip()
                         
                         if format_eksklusif:
-                            # FORMAT FINAL: ..._AXC_ZP 24B_MSG_...
                             new_name = f"{prefix_periode}_Resor 1.21 Boo_{kode_ceklis}_{jenis_kegiatan}_{kategori_nama}_{aid_clean}_{aloc_clean}_{tgl_full}.pdf"
                         else:
                             new_name = f"{jenis_kegiatan.upper()} {kategori_nama} {aid_clean} {aloc_clean} {tgl_full}.pdf"
+
+                        new_name = new_name.replace("__", "_").replace("  ", " ")
 
                         if new_name not in unique_filenames:
                             zip_f.writestr(new_name, f.getvalue())

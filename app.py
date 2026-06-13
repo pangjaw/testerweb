@@ -16,8 +16,8 @@ else:
 
 # --- TAMPILAN UTAMA ---
 st.set_page_config(page_title="Test Telekomunikasi", page_icon="📞", layout="wide")
-st.title("📞 UJI COBA KHUSUS TELKOM (PTDS / PTLS)")
-st.info("Skrip ini diisolasi HANYA untuk membaca dokumen Telekomunikasi dan menghasilkan 1 output per file.")
+st.title("📞 UJI COBA KHUSUS TELKOM (PTDS, PTLS, PTPP)")
+st.info("Skrip diisolasi HANYA untuk membaca dokumen Telekomunikasi (Stasiun, Luar Stasiun, dan JPL).")
 
 uploaded_files = st.file_uploader("Upload PDF Telekomunikasi", type="pdf", accept_multiple_files=True)
 
@@ -53,31 +53,49 @@ if uploaded_files:
                 with st.expander(f"👀 Intip Hasil Baca OCR: {f.name}"):
                     st.write(text_flat)
                 
-                # LOGIKA DETEKSI PTDS & PTLS
+                # --- LOGIKA DETEKSI PTDS, PTLS, PTPP ---
                 is_ptds = "TELEKOMUNIKASI DI STASIUN" in text_flat
                 is_ptls = "TELEKOMUNIKASI DI LUAR STASIUN" in text_flat
+                is_ptpp = "TELEKOMUNIKASI DI PINTU PERLINTASAN" in text_flat
                 
-                if is_ptds or is_ptls:
-                    aid = "PTDS" if is_ptds else "PTLS"
-                    kode_ceklis = "BPBKS15" if is_ptds else "BPBKS16"
+                if is_ptds or is_ptls or is_ptpp:
+                    
+                    if is_ptds:
+                        aid = "PTDS"
+                        kode_ceklis = "BPBKS15"
+                    elif is_ptls:
+                        aid = "PTLS"
+                        kode_ceklis = "BPBKS16"
+                    else:
+                        aid = "PTPP"
+                        kode_ceklis = "BPBKS17"
                     
                     loc_code = "LOKASI"
                     
-                    # LOGIKA LOKASI UPDATE: PALEDANG WAJIB DI ATAS BOGOR
-                    if "PALEDANG" in text_flat: loc_code = "BOP"
-                    elif "BOGOR" in text_flat: loc_code = "BOO"
-                    elif "CILEBUT" in text_flat: loc_code = "CLT"
-                    elif "BATUTULIS" in text_flat: loc_code = "BTT"
-                    elif "MASENG" in text_flat: loc_code = "MSG"
-                    elif "CIOMAS" in text_flat: loc_code = "COS"
-                    elif "CIGOMBONG" in text_flat: loc_code = "CGB"
+                    # LOGIKA LOKASI BERDASARKAN JENIS PERALATAN
+                    if is_ptpp:
+                        # Logika Khusus PTPP: Cari pola JPL + Angka + (opsional) Kode Stasiun
+                        # Contoh tangkapan: "JPL 28", "JPL 28 CLT", "JPL 27 CLT-BOO"
+                        match_jpl = re.search(r'JPL\s*\d+(?:\s*[A-Z\-]+)?', text_flat)
+                        if match_jpl:
+                            loc_code = match_jpl.group(0).strip()
+                    else:
+                        # Logika Lokasi PTDS / PTLS
+                        if "PALEDANG" in text_flat: loc_code = "BOP"
+                        elif "BOGOR" in text_flat: loc_code = "BOO"
+                        elif "CILEBUT" in text_flat: loc_code = "CLT"
+                        elif "BATUTULIS" in text_flat: loc_code = "BTT"
+                        elif "MASENG" in text_flat: loc_code = "MSG"
+                        elif "CIOMAS" in text_flat: loc_code = "COS"
+                        elif "CIGOMBONG" in text_flat: loc_code = "CGB"
                     
+                    # RAKIT NAMA BARU
                     new_name = f"PERAWATAN {aid} {loc_code} {tgl_full}.pdf"
                     
                     zip_f.writestr(new_name, f.getvalue())
                     processed_files.append(new_name)
                 else:
-                    duplicate_errors.append(f"⚠️ `{f.name}`: Bukan dokumen PTDS/PTLS atau gagal terbaca OCR.")
+                    duplicate_errors.append(f"⚠️ `{f.name}`: Bukan dokumen Telekomunikasi valid atau gagal OCR.")
                 
                 del img, img_cropped, images
                 gc.collect() 
@@ -91,7 +109,7 @@ if uploaded_files:
         st.download_button(
             label="📥 DOWNLOAD ZIP", 
             data=zip_buffer.getvalue(), 
-            file_name="Test_Hasil_Telkom.zip", 
+            file_name="Test_Hasil_Telkom_All.zip", 
             mime="application/zip", 
             type="primary"
         )

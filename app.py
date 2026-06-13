@@ -26,14 +26,101 @@ def load_lottiefile(filepath: str):
 
 lottie_train = load_lottiefile("Metro Rail.json")
 
-# --- 2. LOGIKA ADMIN MODE & INIT CACHE ---
+# --- 2. FUNGSI OCR DENGAN SMART CACHE STREAMLIT ---
+# @st.cache_data memastikan file yang sama TIDAK AKAN di-OCR ulang. 
+# Ini sangat aman, anti-freeze, dan tidak memblokir UI.
+@st.cache_data(show_spinner=False, max_entries=100)
+def extract_pdf_data(name_only, file_bytes):
+    tgl_full, prefix_periode, kode_ceklis, kategori_nama = "", "", "", ""
+    assets_found, ocr_error = [], None
+    debug_text = ""
+    
+    tgl_match = re.search(r'(\d{2})-(\d{2})-(\d{4})', name_only)
+    
+    if not tgl_match:
+        ocr_error = "Format tanggal (DD-MM-YYYY) tidak ditemukan."
+        return tgl_full, prefix_periode, kode_ceklis, kategori_nama, assets_found, ocr_error, debug_text
+        
+    tgl_full = tgl_match.group(0)
+    bln_angka = str(int(tgl_match.group(2)))
+    thn_angka = tgl_match.group(3)
+    prefix_periode = f"{thn_angka}-{bln_angka}"
+    
+    target_keyword = None
+    if any(x in name_only for x in ["WESEL", "WLSE"]): 
+        target_keyword, kode_ceklis, kategori_nama = "WESEL", "BPBYE1", "WESEL"
+    elif any(x in name_only for x in ["AXLE", "COUNTER", "AXL"]): 
+        target_keyword, kode_ceklis, kategori_nama = "AXLE", "BPBYE7", "AXC"
+    elif any(x in name_only for x in ["SINYAL", "BLOK", "ZP"]): 
+        target_keyword, kode_ceklis, kategori_nama = "SINYAL", "BPBYE3", "SINYAL"
+
+    if target_keyword:
+        try:
+            images = convert_from_bytes(file_bytes, dpi=150, first_page=1, last_page=1)
+            img = images[0].convert('L') 
+            img = ImageOps.autocontrast(img) 
+            
+            width, height = img.size
+            img_cropped = img.crop((0.0, 0.0, width*1.0, height*0.35))
+            
+            text_crop = pytesseract.image_to_string(img_cropped).upper()
+            text_flat = re.sub(r'\s+', ' ', text_crop)
+            debug_text = text_flat # Simpan teks untuk mode debug
+            
+            # --- LOGIKA INTERSEPT KHUSUS PDSE ---
+            if "PERALATAN DALAM" in text_flat and "PERSINYALAN" in text_flat:
+                loc_code = "LOKASI"
+                if "BOGOR" in text_flat: loc_code = "BOO"
+                elif "CILEBUT" in text_flat: loc_code = "CLT"
+                elif "BOJONG" in text_flat or "BJD" in text_flat: loc_code = "BJD"
+                elif "CITAYAM" in text_flat: loc_code = "CTA"
+                elif "DEPOK" in text_flat: loc_code = "DP"
+                
+                kategori_nama = "" 
+                kode_ceklis = "BPBYE2" 
+                assets_found = [{"id": "PDSE", "loc": loc_code}] 
+                
+            else:
+                # --- LOGIKA NORMAL WESEL, AXLE, ZP ---
+                lines = [line.strip() for line in text_crop.split('\n') if line.strip()]
+                noise = ["PERAWATAN", "PEMERIKSAAN", "MINGGUAN", "BULANAN", "TAHUNAN", "CEKLIS", "ULANG", 
+                         "PENGGERAK", "WESEL", "ELEKTRIK", "AXLE", "COUNTER", "SIEMENS", "PERAGA", 
+                         "SINYAL", "SAMPEL", "NOMOR", "INTERNAL", "TERLAYAN", "SETEMPAT", "BLOK", 
+                         "MASUK", "KELUAR", "MUKA", "DAN", "LANGSIR", "JALAN"]
+
+                for line in lines:
+                    if any(k in line for k in ["SINYAL", "BLOK", "WESEL", "AXLE", "COUNTER"]):
+                        if any(judul in line for judul in ["BULANAN", "MINGGUAN", "TAHUNAN"]):
+                            continue
+                        clean = line.split(":")[-1].strip() if ":" in line else line.strip()
+                        words = clean.replace(".", " ").split()
+                        final = [w for w in words if w not in noise]
+                        
+                        if final:
+                            if final[0] == "ZP" and len(final) > 1 and any(char.isdigit() for char in final[1]):
+                                aid = f"{final[0]} {final[1]}"
+                                loc_id = " ".join(final[2:]) if len(final) > 2 else "LOKASI"
+                            else:
+                                aid = final[0]
+                                loc_id = " ".join(final[1:]) if len(final) > 1 else "LOKASI"
+                            
+                            loc_id = loc_id.replace("BUD", "BJD").strip()
+                            
+                            if target_keyword == "WESEL" and not aid.startswith("W"): aid = f"W{aid}"
+                            elif target_keyword == "AXLE" and not aid.startswith("ZP"): aid = f"ZP{aid}"
+                            assets_found.append({"id": aid, "loc": loc_id})
+            
+            del img, img_cropped, images
+            gc.collect() 
+        except Exception as e:
+            ocr_error = f"OCR Error ({str(e)})"
+            
+    return tgl_full, prefix_periode, kode_ceklis, kategori_nama, assets_found, ocr_error, debug_text
+
+# --- 3. LOGIKA ADMIN MODE ---
 is_admin = st.query_params.get("mode") == "admin"
 
-# Inisialisasi Memori Cache untuk OCR
-if "ocr_cache" not in st.session_state:
-    st.session_state["ocr_cache"] = {}
-
-# --- 3. TAMPILAN UTAMA ---
+# --- 4. TAMPILAN UTAMA ---
 st.set_page_config(page_title="Sintelis 1.21 BOO Utility", page_icon="📑", layout="wide")
 st.title("📑 GANTI NAMA PDFs CEKLIS SINTELIS")
 
@@ -42,19 +129,8 @@ col1, col2 = st.columns([1, 1], gap="large")
 with col1:
     st.subheader("📁 Input & Setting")
     
-    jenis_kegiatan = st.radio(
-        "Pilih Jenis Kegiatan:",
-        ["Perawatan", "Pemeriksaan"],
-        index=0,
-        horizontal=True
-    )
-    
-    instansi = st.radio(
-        "Pilih Instansi/Format Nama:",
-        ["BTP JAK (Format Standar)", "BTP BD (Format Khusus Sintel Boo)"],
-        index=0
-    )
-    
+    jenis_kegiatan = st.radio("Pilih Jenis Kegiatan:", ["Perawatan", "Pemeriksaan"], index=0, horizontal=True)
+    instansi = st.radio("Pilih Instansi/Format Nama:", ["BTP JAK (Format Standar)", "BTP BD (Format Khusus Sintel Boo)"], index=0)
     format_eksklusif = True if "BTP BD" in instansi else False
     
     if is_admin:
@@ -69,7 +145,7 @@ with col1:
 
     if st.button("🗑️ Hapus Semua File", use_container_width=True):
         st.session_state["file_uploader_key"] += 1
-        st.session_state["ocr_cache"].clear() # Hapus cache saat tombol ditekan
+        extract_pdf_data.clear() # Membersihkan cache memori jika tombol hapus ditekan
         st.rerun()
 
     uploaded_files = st.file_uploader(
@@ -79,7 +155,7 @@ with col1:
         key=f"uploader_{st.session_state['file_uploader_key']}"
     )
 
-# --- 4. PROSES DATA ---
+# --- 5. PROSES DATA ---
 if uploaded_files:
     zip_buffer = BytesIO()
     processed_files, duplicate_errors, unique_filenames = [], [], set() 
@@ -97,126 +173,19 @@ if uploaded_files:
 
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_f:
             for idx, f in enumerate(uploaded_files):
+                progress_text.info(f"🚂 Memeriksa File {idx+1}/{len(uploaded_files)}...")
                 
-                # Cek apakah file sudah pernah diproses sebelumnya (ada di Cache)
-                is_cached = f.name in st.session_state["ocr_cache"]
-                status_msg = "⚡ Mengambil dari memori..." if is_cached else "🚂 Memproses OCR..."
-                progress_text.info(f"{status_msg} {idx+1}/{len(uploaded_files)}")
+                # --- PANGGIL FUNGSI CACHE ---
+                # Jika file ini sudah pernah diproses sebelumnya, Streamlit akan langsung memunculkan hasil seketika
+                tgl_full, prefix_periode, kode_ceklis, kategori_nama, assets_found, ocr_error, debug_text = extract_pdf_data(f.name.upper(), f.getvalue())
                 
-                name_only = f.name.upper()
+                if debug_mode and debug_text:
+                    with st.expander(f"👀 Intip Teks OCR: {f.name}"):
+                        st.write(debug_text)
                 
-                # --- BLOK PEMBACAAN DATA (CACHE vs OCR BARU) ---
-                if is_cached:
-                    cache_data = st.session_state["ocr_cache"][f.name]
-                    tgl_full = cache_data["tgl_full"]
-                    prefix_periode = cache_data["prefix_periode"]
-                    kode_ceklis = cache_data["kode_ceklis"]
-                    kategori_nama = cache_data["kategori_nama"]
-                    assets_found = cache_data["assets_found"]
-                    ocr_error = cache_data["ocr_error"]
-                else:
-                    tgl_full, prefix_periode, kode_ceklis, kategori_nama = "", "", "", ""
-                    assets_found, ocr_error = [], None
-                    
-                    tgl_match = re.search(r'(\d{2})-(\d{2})-(\d{4})', name_only)
-                    
-                    if not tgl_match:
-                        ocr_error = f"❌ `{f.name}`: Format tanggal (DD-MM-YYYY) tidak ditemukan."
-                    else:
-                        tgl_full = tgl_match.group(0)
-                        bln_angka = str(int(tgl_match.group(2)))
-                        thn_angka = tgl_match.group(3)
-                        prefix_periode = f"{thn_angka}-{bln_angka}"
-                        
-                        target_keyword = None
-                        if any(x in name_only for x in ["WESEL", "WLSE"]): 
-                            target_keyword, kode_ceklis, kategori_nama = "WESEL", "BPBYE1", "WESEL"
-                        elif any(x in name_only for x in ["AXLE", "COUNTER", "AXL"]): 
-                            target_keyword, kode_ceklis, kategori_nama = "AXLE", "BPBYE7", "AXC"
-                        elif any(x in name_only for x in ["SINYAL", "BLOK", "ZP"]): 
-                            target_keyword, kode_ceklis, kategori_nama = "SINYAL", "BPBYE3", "SINYAL"
-
-                        if target_keyword:
-                            try:
-                                images = convert_from_bytes(f.getvalue(), dpi=150, first_page=1, last_page=1)
-                                img = images[0].convert('L') 
-                                img = ImageOps.autocontrast(img) 
-                                
-                                width, height = img.size
-                                img_cropped = img.crop((0.0, 0.0, width*1.0, height*0.35))
-                                
-                                if debug_mode: 
-                                    st.image(img_cropped, caption=f"Scan: {f.name}")
-                                    
-                                text_crop = pytesseract.image_to_string(img_cropped).upper()
-                                text_flat = re.sub(r'\s+', ' ', text_crop)
-                                
-                                if debug_mode:
-                                    with st.expander(f"👀 Intip Teks OCR: {f.name}"):
-                                        st.write(text_flat)
-                                
-                                if "PERALATAN DALAM" in text_flat and "PERSINYALAN" in text_flat:
-                                    loc_code = "LOKASI"
-                                    if "BOGOR" in text_flat: loc_code = "BOO"
-                                    elif "CILEBUT" in text_flat: loc_code = "CLT"
-                                    elif "BOJONG" in text_flat or "BJD" in text_flat: loc_code = "BJD"
-                                    elif "CITAYAM" in text_flat: loc_code = "CTA"
-                                    elif "DEPOK" in text_flat: loc_code = "DP"
-                                    
-                                    kategori_nama = "" 
-                                    kode_ceklis = "BPBYE2" 
-                                    assets_found = [{"id": "PDSE", "loc": loc_code}] 
-                                    
-                                else:
-                                    lines = [line.strip() for line in text_crop.split('\n') if line.strip()]
-                                    
-                                    noise = ["PERAWATAN", "PEMERIKSAAN", "MINGGUAN", "BULANAN", "TAHUNAN", "CEKLIS", "ULANG", 
-                                             "PENGGERAK", "WESEL", "ELEKTRIK", "AXLE", "COUNTER", "SIEMENS", "PERAGA", 
-                                             "SINYAL", "SAMPEL", "NOMOR", "INTERNAL", "TERLAYAN", "SETEMPAT", "BLOK", 
-                                             "MASUK", "KELUAR", "MUKA", "DAN", "LANGSIR", "JALAN"]
-
-                                    for line in lines:
-                                        if any(k in line for k in ["SINYAL", "BLOK", "WESEL", "AXLE", "COUNTER"]):
-                                            
-                                            if any(judul in line for judul in ["BULANAN", "MINGGUAN", "TAHUNAN"]):
-                                                continue
-                                            
-                                            clean = line.split(":")[-1].strip() if ":" in line else line.strip()
-                                            words = clean.replace(".", " ").split()
-                                            final = [w for w in words if w not in noise]
-                                            
-                                            if final:
-                                                if final[0] == "ZP" and len(final) > 1 and any(char.isdigit() for char in final[1]):
-                                                    aid = f"{final[0]} {final[1]}"
-                                                    loc_id = " ".join(final[2:]) if len(final) > 2 else "LOKASI"
-                                                else:
-                                                    aid = final[0]
-                                                    loc_id = " ".join(final[1:]) if len(final) > 1 else "LOKASI"
-                                                
-                                                loc_id = loc_id.replace("BUD", "BJD").strip()
-                                                
-                                                if target_keyword == "WESEL" and not aid.startswith("W"): aid = f"W{aid}"
-                                                elif target_keyword == "AXLE" and not aid.startswith("ZP"): aid = f"ZP{aid}"
-                                                assets_found.append({"id": aid, "loc": loc_id})
-                                
-                                del img, img_cropped, images
-                                gc.collect() 
-                            except Exception as e:
-                                ocr_error = f"❌ `{f.name}`: OCR Error ({str(e)})"
-
-                    # Simpan hasil ekstraksi ke dalam Cache
-                    st.session_state["ocr_cache"][f.name] = {
-                        "tgl_full": tgl_full,
-                        "prefix_periode": prefix_periode,
-                        "kode_ceklis": kode_ceklis,
-                        "kategori_nama": kategori_nama,
-                        "assets_found": assets_found,
-                        "ocr_error": ocr_error
-                    }
-
-                # --- BLOK PERAKITAN NAMA FILE (Terlepas dari dari Cache atau OCR Baru) ---
+                # --- EVALUASI HASIL OCR ---
                 if ocr_error:
-                    duplicate_errors.append(ocr_error)
+                    duplicate_errors.append(f"❌ `{f.name}`: {ocr_error}")
                     continue
 
                 if assets_found:

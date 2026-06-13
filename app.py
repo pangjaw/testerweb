@@ -74,9 +74,11 @@ if uploaded_files:
                     
                     # LOGIKA LOKASI BERDASARKAN JENIS PERALATAN
                     if is_ptpp:
-                        # Logika Khusus PTPP: Cari pola JPL + Angka + (opsional) Kode Stasiun
-                        # Contoh tangkapan: "JPL 28", "JPL 28 CLT", "JPL 27 CLT-BOO"
-                        match_jpl = re.search(r'JPL\s*\d+(?:\s*[A-Z\-]+)?', text_flat)
+                        # PENGAMANAN REGEX BARU SESUAI PERMINTAAN:
+                        # Wajib ada spasi setelah JPL (\s+)
+                        # Diikuti angka berapapun jumlahnya (\d+)
+                        # Diikuti opsional kode stasiun/huruf ([A-Z\-]+)
+                        match_jpl = re.search(r'JPL\s+\d+\b(?:\s+[A-Z\-]+)?', text_flat)
                         if match_jpl:
                             loc_code = match_jpl.group(0).strip()
                     else:

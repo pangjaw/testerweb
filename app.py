@@ -145,6 +145,8 @@ if uploaded_files:
                             elif "DEPOK" in text_flat: loc_code = "DP"
                             
                             kategori_nama = "" # Kosongkan agar penamaan di tengah rapi
+                            kode_ceklis = "BPBYE2" # Timpa kode ceklis khusus untuk PDSE
+                            
                             # Mengunci array assets_found menjadi hanya 1 data PDSE
                             assets_found = [{"id": "PDSE", "loc": loc_code}] 
                             

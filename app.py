@@ -1,233 +1,108 @@
 import streamlit as st
-import json
 import re
-import os
 import zipfile
 import platform
 import pytesseract
 import gc 
 from io import BytesIO
 from pdf2image import convert_from_bytes
-from streamlit_lottie import st_lottie
 from PIL import ImageOps
 
-# --- 1. KONFIGURASI TESSERACT ---
+# --- KONFIGURASI TESSERACT ---
 if platform.system() == "Windows":
     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 else:
     pytesseract.pytesseract.tesseract_cmd = 'tesseract'
 
-def load_lottiefile(filepath: str):
-    try:
-        with open(filepath, "r") as f:
-            return json.load(f)
-    except:
-        return None
+# --- TAMPILAN UTAMA ---
+st.set_page_config(page_title="Test Telekomunikasi", page_icon="📞", layout="wide")
+st.title("📞 UJI COBA KHUSUS TELKOM (PTDS / PTLS)")
+st.info("Skrip ini diisolasi HANYA untuk membaca dokumen Telekomunikasi dan menghasilkan 1 output per file.")
 
-lottie_train = load_lottiefile("Metro Rail.json")
+uploaded_files = st.file_uploader("Upload PDF Telekomunikasi", type="pdf", accept_multiple_files=True)
 
-# --- 2. FUNGSI OCR DENGAN SMART CACHE STREAMLIT ---
-# @st.cache_data memastikan file yang sama TIDAK AKAN di-OCR ulang. 
-# Ini sangat aman, anti-freeze, dan tidak memblokir UI.
-@st.cache_data(show_spinner=False, max_entries=100)
-def extract_pdf_data(name_only, file_bytes):
-    tgl_full, prefix_periode, kode_ceklis, kategori_nama = "", "", "", ""
-    assets_found, ocr_error = [], None
-    debug_text = ""
-    
-    tgl_match = re.search(r'(\d{2})-(\d{2})-(\d{4})', name_only)
-    
-    if not tgl_match:
-        ocr_error = "Format tanggal (DD-MM-YYYY) tidak ditemukan."
-        return tgl_full, prefix_periode, kode_ceklis, kategori_nama, assets_found, ocr_error, debug_text
-        
-    tgl_full = tgl_match.group(0)
-    bln_angka = str(int(tgl_match.group(2)))
-    thn_angka = tgl_match.group(3)
-    prefix_periode = f"{thn_angka}-{bln_angka}"
-    
-    target_keyword = None
-    if any(x in name_only for x in ["WESEL", "WLSE"]): 
-        target_keyword, kode_ceklis, kategori_nama = "WESEL", "BPBYE1", "WESEL"
-    elif any(x in name_only for x in ["AXLE", "COUNTER", "AXL"]): 
-        target_keyword, kode_ceklis, kategori_nama = "AXLE", "BPBYE7", "AXC"
-    elif any(x in name_only for x in ["SINYAL", "BLOK", "ZP"]): 
-        target_keyword, kode_ceklis, kategori_nama = "SINYAL", "BPBYE3", "SINYAL"
-
-    if target_keyword:
-        try:
-            images = convert_from_bytes(file_bytes, dpi=150, first_page=1, last_page=1)
-            img = images[0].convert('L') 
-            img = ImageOps.autocontrast(img) 
-            
-            width, height = img.size
-            img_cropped = img.crop((0.0, 0.0, width*1.0, height*0.35))
-            
-            text_crop = pytesseract.image_to_string(img_cropped).upper()
-            text_flat = re.sub(r'\s+', ' ', text_crop)
-            debug_text = text_flat # Simpan teks untuk mode debug
-            
-            # --- LOGIKA INTERSEPT KHUSUS PDSE ---
-            if "PERALATAN DALAM" in text_flat and "PERSINYALAN" in text_flat:
-                loc_code = "LOKASI"
-                if "BOGOR" in text_flat: loc_code = "BOO"
-                elif "CILEBUT" in text_flat: loc_code = "CLT"
-                elif "BOJONG" in text_flat or "BJD" in text_flat: loc_code = "BJD"
-                elif "CITAYAM" in text_flat: loc_code = "CTA"
-                elif "DEPOK" in text_flat: loc_code = "DP"
-                
-                kategori_nama = "" 
-                kode_ceklis = "BPBYE2" 
-                assets_found = [{"id": "PDSE", "loc": loc_code}] 
-                
-            else:
-                # --- LOGIKA NORMAL WESEL, AXLE, ZP ---
-                lines = [line.strip() for line in text_crop.split('\n') if line.strip()]
-                noise = ["PERAWATAN", "PEMERIKSAAN", "MINGGUAN", "BULANAN", "TAHUNAN", "CEKLIS", "ULANG", 
-                         "PENGGERAK", "WESEL", "ELEKTRIK", "AXLE", "COUNTER", "SIEMENS", "PERAGA", 
-                         "SINYAL", "SAMPEL", "NOMOR", "INTERNAL", "TERLAYAN", "SETEMPAT", "BLOK", 
-                         "MASUK", "KELUAR", "MUKA", "DAN", "LANGSIR", "JALAN"]
-
-                for line in lines:
-                    if any(k in line for k in ["SINYAL", "BLOK", "WESEL", "AXLE", "COUNTER"]):
-                        if any(judul in line for judul in ["BULANAN", "MINGGUAN", "TAHUNAN"]):
-                            continue
-                        clean = line.split(":")[-1].strip() if ":" in line else line.strip()
-                        words = clean.replace(".", " ").split()
-                        final = [w for w in words if w not in noise]
-                        
-                        if final:
-                            if final[0] == "ZP" and len(final) > 1 and any(char.isdigit() for char in final[1]):
-                                aid = f"{final[0]} {final[1]}"
-                                loc_id = " ".join(final[2:]) if len(final) > 2 else "LOKASI"
-                            else:
-                                aid = final[0]
-                                loc_id = " ".join(final[1:]) if len(final) > 1 else "LOKASI"
-                            
-                            loc_id = loc_id.replace("BUD", "BJD").strip()
-                            
-                            if target_keyword == "WESEL" and not aid.startswith("W"): aid = f"W{aid}"
-                            elif target_keyword == "AXLE" and not aid.startswith("ZP"): aid = f"ZP{aid}"
-                            assets_found.append({"id": aid, "loc": loc_id})
-            
-            del img, img_cropped, images
-            gc.collect() 
-        except Exception as e:
-            ocr_error = f"OCR Error ({str(e)})"
-            
-    return tgl_full, prefix_periode, kode_ceklis, kategori_nama, assets_found, ocr_error, debug_text
-
-# --- 3. LOGIKA ADMIN MODE ---
-is_admin = st.query_params.get("mode") == "admin"
-
-# --- 4. TAMPILAN UTAMA ---
-st.set_page_config(page_title="Sintelis 1.21 BOO Utility", page_icon="📑", layout="wide")
-st.title("📑 GANTI NAMA PDFs CEKLIS SINTELIS")
-
-col1, col2 = st.columns([1, 1], gap="large")
-
-with col1:
-    st.subheader("📁 Input & Setting")
-    
-    jenis_kegiatan = st.radio("Pilih Jenis Kegiatan:", ["Perawatan", "Pemeriksaan"], index=0, horizontal=True)
-    instansi = st.radio("Pilih Instansi/Format Nama:", ["BTP JAK (Format Standar)", "BTP BD (Format Khusus Sintel Boo)"], index=0)
-    format_eksklusif = True if "BTP BD" in instansi else False
-    
-    if is_admin:
-        with st.expander("🛠️ Admin Debug Tools", expanded=False):
-            st.info("Mode Admin: Fitur bantuan teknis.")
-            debug_mode = st.checkbox("Aktifkan Layar Intip (Debug Mode)", value=False)
-    else:
-        debug_mode = False
-
-    if "file_uploader_key" not in st.session_state:
-        st.session_state["file_uploader_key"] = 0
-
-    if st.button("🗑️ Hapus Semua File", use_container_width=True):
-        st.session_state["file_uploader_key"] += 1
-        extract_pdf_data.clear() # Membersihkan cache memori jika tombol hapus ditekan
-        st.rerun()
-
-    uploaded_files = st.file_uploader(
-        "Upload PDF", 
-        type="pdf", 
-        accept_multiple_files=True, 
-        key=f"uploader_{st.session_state['file_uploader_key']}"
-    )
-
-# --- 5. PROSES DATA ---
+# --- PROSES DATA ---
 if uploaded_files:
     zip_buffer = BytesIO()
-    processed_files, duplicate_errors, unique_filenames = [], [], set() 
+    processed_files, duplicate_errors = [], []
     
-    with col2:
-        head_col, btn_col = st.columns([1.5, 1])
-        with head_col:
-            st.subheader("📋 Hasil Proses")
-        
-        status_container = st.empty()
-        with status_container.container():
-            if lottie_train:
-                st_lottie(lottie_train, height=150, key="train_loader")
-            progress_text = st.empty()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_f:
+        for f in uploaded_files:
+            name_only = f.name.upper()
+            
+            # 1. Ambil Tanggal dari Nama File Asli
+            tgl_match = re.search(r'(\d{2})-(\d{2})-(\d{4})', name_only)
+            if not tgl_match:
+                duplicate_errors.append(f"❌ `{f.name}`: Format tanggal (DD-MM-YYYY) tidak ditemukan.")
+                continue
+            tgl_full = tgl_match.group(0)
 
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_f:
-            for idx, f in enumerate(uploaded_files):
-                progress_text.info(f"🚂 Memeriksa File {idx+1}/{len(uploaded_files)}...")
+            # 2. Proses OCR
+            try:
+                images = convert_from_bytes(f.getvalue(), dpi=150, first_page=1, last_page=1)
+                img = images[0].convert('L') 
+                img = ImageOps.autocontrast(img) 
                 
-                # --- PANGGIL FUNGSI CACHE ---
-                # Jika file ini sudah pernah diproses sebelumnya, Streamlit akan langsung memunculkan hasil seketika
-                tgl_full, prefix_periode, kode_ceklis, kategori_nama, assets_found, ocr_error, debug_text = extract_pdf_data(f.name.upper(), f.getvalue())
+                width, height = img.size
+                # Crop area atas (0.0 sampai 0.35) untuk memastikan Judul dan Tabel Lokasi masuk
+                img_cropped = img.crop((0.0, 0.0, width*1.0, height*0.35))
                 
-                if debug_mode and debug_text:
-                    with st.expander(f"👀 Intip Teks OCR: {f.name}"):
-                        st.write(debug_text)
+                text_crop = pytesseract.image_to_string(img_cropped).upper()
+                text_flat = re.sub(r'\s+', ' ', text_crop) # Ratakan spasi & enter
                 
-                # --- EVALUASI HASIL OCR ---
-                if ocr_error:
-                    duplicate_errors.append(f"❌ `{f.name}`: {ocr_error}")
-                    continue
-
-                if assets_found:
-                    for asset in assets_found:
-                        aid_clean = asset["id"].strip()
-                        aloc_clean = asset["loc"].strip()
-                        
-                        if format_eksklusif:
-                            new_name = f"{prefix_periode}_Resor 1.21 Boo_{kode_ceklis}_{jenis_kegiatan}_{kategori_nama}_{aid_clean}_{aloc_clean}_{tgl_full}.pdf"
-                        else:
-                            new_name = f"{jenis_kegiatan.upper()} {kategori_nama} {aid_clean} {aloc_clean} {tgl_full}.pdf"
-
-                        new_name = new_name.replace("__", "_").replace("  ", " ")
-
-                        if new_name not in unique_filenames:
-                            zip_f.writestr(new_name, f.getvalue())
-                            processed_files.append(new_name)
-                            unique_filenames.add(new_name)
-                        else:
-                            duplicate_errors.append(f"⚠️ `{f.name}`: ID `{aid_clean}` duplikat.")
+                # --- LAYAR INTIP DEBUG ---
+                with st.expander(f"👀 Intip Hasil Baca OCR: {f.name}"):
+                    st.write(text_flat)
+                
+                # 3. LOGIKA DETEKSI PTDS & PTLS
+                is_ptds = "TELEKOMUNIKASI DI STASIUN" in text_flat
+                is_ptls = "TELEKOMUNIKASI DI LUAR STASIUN" in text_flat
+                
+                if is_ptds or is_ptls:
+                    # Tentukan ID dan Kode Ceklis berdasarkan deteksi
+                    aid = "PTDS" if is_ptds else "PTLS"
+                    kode_ceklis = "BPBKS15" if is_ptds else "BPBKS16"
+                    
+                    loc_code = "LOKASI"
+                    
+                    # Cek nama stasiun (Termasuk tambahan Bogorpaledang)
+                    if "BOGORPALEDANG" in text_flat or "PALEDANG" in text_flat: loc_code = "PLG"
+                    elif "BOGOR" in text_flat: loc_code = "BOO"
+                    elif "CILEBUT" in text_flat: loc_code = "CLT"
+                    elif "BOJONG" in text_flat or "BJD" in text_flat: loc_code = "BJD"
+                    elif "CITAYAM" in text_flat: loc_code = "CTA"
+                    elif "DEPOK" in text_flat: loc_code = "DP"
+                    
+                    # RAKIT NAMA BARU (Format Uji Coba: PERAWATAN PTDS PLG 12-06-2026.pdf)
+                    new_name = f"PERAWATAN {aid} {loc_code} {tgl_full}.pdf"
+                    
+                    zip_f.writestr(new_name, f.getvalue())
+                    processed_files.append(new_name)
                 else:
-                    duplicate_errors.append(f"🔍 `{f.name}`: Gagal identifikasi ID Aset.")
+                    duplicate_errors.append(f"⚠️ `{f.name}`: Bukan dokumen PTDS/PTLS atau gagal terbaca OCR.")
+                
+                del img, img_cropped, images
+                gc.collect() 
+                
+            except Exception as e:
+                duplicate_errors.append(f"❌ `{f.name}`: Error OCR ({str(e)})")
 
-        status_container.empty()
-
-        if processed_files:
-            with btn_col:
-                st.download_button(label="📥 DOWNLOAD ZIP", data=zip_buffer.getvalue(), file_name="Hasil_Rename_Sintelis_BOO.zip", mime="application/zip", use_container_width=True, type="primary")
-
-        with st.expander(f"✅ Sukses Teridentifikasi ({len(processed_files)})", expanded=True):
-            if processed_files:
-                with st.container(height=150):
-                    for p_file in processed_files: st.write(f"📄 `{p_file}`")
-            else:
-                st.write("Belum ada file yang berhasil diproses.")
-
-        with st.expander(f"❌ Gagal Diproses ({len(duplicate_errors)})", expanded=True):
-            if duplicate_errors:
-                with st.container(height=150):
-                    for err in duplicate_errors: st.warning(err)
-            else:
-                st.write("Tidak ada kendala pada file.")
+    # --- TAMPILAN HASIL ---
+    st.markdown("### 📋 Hasil Proses")
+    if processed_files:
+        st.download_button(
+            label="📥 DOWNLOAD ZIP", 
+            data=zip_buffer.getvalue(), 
+            file_name="Test_Hasil_Telkom.zip", 
+            mime="application/zip", 
+            type="primary"
+        )
+        for p_file in processed_files:
+            st.success(f"📄 Berhasil: `{p_file}`")
+            
+    if duplicate_errors:
+        for err in duplicate_errors:
+            st.warning(err)
 
 st.markdown("---")
 st.markdown("<div style='text-align: center; color: grey;'>Developed by <b>Dika Armansyah</b> | Sintelis 1.21 BOO Utility</div>", unsafe_allow_html=True)

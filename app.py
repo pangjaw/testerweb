@@ -17,7 +17,7 @@ else:
 # --- TAMPILAN UTAMA ---
 st.set_page_config(page_title="Test PDSE Saja", page_icon="🧪", layout="wide")
 st.title("🧪 UJI COBA KHUSUS PDSE")
-st.info("Skrip ini diisolasi HANYA untuk membaca dokumen PDSE dan menghasilkan 1 output per file.")
+st.info("Versi Update: Area crop diperluas dan filter kata kunci dibuat lebih fleksibel.")
 
 uploaded_files = st.file_uploader("Upload PDF PDSE", type="pdf", accept_multiple_files=True)
 
@@ -44,30 +44,32 @@ if uploaded_files:
                 img = ImageOps.autocontrast(img) 
                 
                 width, height = img.size
-                # Crop area atas (0.0 sampai 0.30) untuk mencari Judul dan Tabel Lokasi
-                img_cropped = img.crop((0.0, height*0.05, width*1.0, height*0.30))
+                
+                # OPTIMASI 1: Tarik crop mentok sampai ke ujung paling atas (0.0) dan ke bawah (0.35)
+                img_cropped = img.crop((0.0, 0.0, width*1.0, height*0.35))
                 
                 text_crop = pytesseract.image_to_string(img_cropped).upper()
                 text_flat = re.sub(r'\s+', ' ', text_crop) # Ratakan spasi & enter
                 
-                # 3. LOGIKA DETEKSI PDSE TUNGGAL
-                if "PERALATAN DALAM PERSINYALAN ELEKTRIK" in text_flat:
+                # --- LAYAR INTIP DEBUG ---
+                with st.expander(f"👀 Intip Hasil Baca OCR: {f.name}"):
+                    st.write(text_flat)
+                
+                # OPTIMASI 2: Logika deteksi dipisah menjadi dua kata kunci utama untuk menghindari typo tipis OCR
+                if "PERALATAN DALAM" in text_flat and "PERSINYALAN" in text_flat:
                     loc_code = "LOKASI"
                     
-                    # Cek nama stasiun
                     if "BOGOR" in text_flat: loc_code = "BOO"
                     elif "CILEBUT" in text_flat: loc_code = "CLT"
                     elif "BOJONG" in text_flat or "BJD" in text_flat: loc_code = "BJD"
                     elif "CITAYAM" in text_flat: loc_code = "CTA"
                     elif "DEPOK" in text_flat: loc_code = "DP"
                     
-                    # RAKIT NAMA BARU (Hanya 1 output)
                     new_name = f"PERAWATAN PDSE {loc_code} {tgl_full}.pdf"
                     
                     zip_f.writestr(new_name, f.getvalue())
                     processed_files.append(new_name)
                 else:
-                    # Jika tidak ada kata kunci PDSE, tolak file
                     duplicate_errors.append(f"⚠️ `{f.name}`: Bukan dokumen PDSE atau gagal terbaca OCR.")
                 
                 del img, img_cropped, images

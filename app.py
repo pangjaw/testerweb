@@ -142,6 +142,7 @@ if uploaded_files:
 
                     # ====================================================
                     # GERBANG A: DOKUMEN SPESIAL (Pencegatan 1 File Utuh)
+                    # URUTAN PENTING: Dari spesifik → generic
                     # ====================================================
                     
                     # 1. PENGAMAN WESEL / POINT LOCK
@@ -174,34 +175,71 @@ if uploaded_files:
                         
                         assets_found.append({"id": "", "loc": loc_id})
 
-                    # 3. TELKOM (PTDS / PTLS)
-                    elif "TELEKOMUNIKASI DI STASIUN" in text_flat or "TELEKOMUNIKASI DI LUAR STASIUN" in text_flat:
+                    # 3. SERAT OPTIK + JPL (SANGAT SPESIFIK - CHECK DULU SEBELUM GENERIC)
+                    elif "SERAT OPTIK" in text_flat and "JPL" in text_flat:
                         is_special_doc = True
-                        is_ptds = "DI STASIUN" in text_flat
-                        target_keyword = "PTDS" if is_ptds else "PTLS"
-                        kategori_nama = target_keyword
-                        kode_ceklis = "BPBKS15" if is_ptds else "BPBKS16"
+                        target_keyword = "SERAT OPTIK"
+                        kategori_nama = "SERAT OPTIK"
+                        kode_ceklis = "BPBKF4"
                         
-                        if "BOGORPALEDANG" in text_flat or "PALEDANG" in text_flat: loc_id = "BOP"
-                        elif "BOGOR" in text_flat: loc_id = "BOO"
-                        elif "CILEBUT" in text_flat: loc_id = "CLT"
-                        elif "BATUTULIS" in text_flat: loc_id = "BTT"
-                        elif "MASENG" in text_flat: loc_id = "MSG"
-                        elif "CIOMAS" in text_flat: loc_id = "COS"
-                        elif "CIGOMBONG" in text_flat: loc_id = "CGB"
-                        else: loc_id = "LOKASI"
+                        # Extract JPL number + lokasi dari OCR
+                        lines = [line.strip() for line in text_crop.split('\n') if line.strip()]
+                        noise_local = ["PERAWATAN", "PEMERIKSAAN", "MINGGUAN", "BULANAN", "TAHUNAN", "CEKLIS", "ULANG", 
+                                       "PENGGERAK", "WESEL", "ELEKTRIK", "AXLE", "COUNTER", "SIEMENS", "PERAGA",
+                                       "SINYAL", "SAMPEL", "NOMOR", "INTERNAL", "TERLAYAN", "SETEMPAT", "BLOK",
+                                       "MASUK", "KELUAR", "MUKA", "DAN", "LANGSIR", "JALAN", "SERAT", "OPTIK"]
                         
-                        assets_found.append({"id": "", "loc": loc_id})
+                        for line in lines:
+                            if "JPL" in line and ("OTB" in line or "FO" in line):
+                                clean = line.split(":")[-1].strip() if ":" in line else line.strip()
+                                words = clean.replace(".", " ").split()
+                                final = [w for w in words if w not in noise_local]
+                                
+                                if final and "JPL" in final:
+                                    jpl_idx = final.index("JPL")
+                                    if jpl_idx + 1 < len(final):
+                                        aid = f"JPL {final[jpl_idx + 1]}"
+                                        loc_id = " ".join(final[jpl_idx + 2:]) if jpl_idx + 2 < len(final) else "LOKASI"
+                                        assets_found.append({"id": aid, "loc": loc_id})
 
-                    # 4. PINTU PERLINTASAN (PTPP)
-                    elif "PINTU PERLINTASAN" in text_flat:
+                    # 4. TELKOM DI PINTU PERLINTASAN (PTPP - SPESIFIK)
+                    elif "TELEKOMUNIKASI DI PINTU PERLINTASAN" in text_flat:
+                        is_special_doc = True
+                        target_keyword = "PTPP"
+                        kategori_nama = "PTPP"
+                        kode_ceklis = "BPBKS18"
+                        
+                        # Extract JPL seperti PINTU PERLINTASAN
+                        jpl_match = re.search(r'JPL\s+(?:ELEKTRIK\s+)?(?:NO[\.\s]*)?([\d]+)\b((?:\s*[A-Z\-]+)*)', text_flat)
+                        
+                        if jpl_match:
+                            angka_jpl = jpl_match.group(1).strip()
+                            lokasi_raw = jpl_match.group(2).strip() if jpl_match.group(2) else ""
+                            
+                            for stop_word in ["LOKASI", "TANGGAL", "DISETUJUI", "BOGOR"]:
+                                if stop_word in lokasi_raw:
+                                    lokasi_raw = lokasi_raw.split(stop_word)[0]
+                                    
+                            lokasi_clean = lokasi_raw.strip()
+                            lokasi_clean = re.sub(r'^-|-$', '', lokasi_clean).strip()
+                            
+                            aid = f"JPL {angka_jpl}"
+                            loc_id = lokasi_clean
+                        else:
+                            aid = "JPL"
+                            loc_id = ""
+                            
+                        assets_found.append({"id": aid, "loc": loc_id})
+
+                    # 5. PINTU PERLINTASAN GENERIC (HANYA JPL, BUKAN TELKOM)
+                    elif "PINTU PERLINTASAN" in text_flat and "TELEKOMUNIKASI" not in text_flat:
                         is_special_doc = True
                         target_keyword = "PINTU PERLINTASAN"
                         kategori_nama = "PINTU PERLINTASAN"
                         kode_ceklis = "BPBKS17"
                         
-                        # Regex Super Pintar: Mengabaikan JPL10499, melompati "ELEKTRIK NO", tangkap angka dan lokasi
-                        jpl_match = re.search(r'JPL\s+(?:ELEKTRIK\s+)?(?:NO[\.\s]*)?(\d+)\b((?:\s*[A-Z\-]+)*)', text_flat)
+                        # Extract JPL number + lokasi
+                        jpl_match = re.search(r'JPL\s+(?:ELEKTRIK\s+)?(?:NO[\.\s]*)?([\d]+)\b((?:\s*[A-Z\-]+)*)', text_flat)
                         
                         if jpl_match:
                             angka_jpl = jpl_match.group(1).strip()
@@ -222,7 +260,43 @@ if uploaded_files:
                             
                         assets_found.append({"id": aid, "loc": loc_id})
 
-                    # 5. CATU DAYA
+                    # 6. TELKOM DI STASIUN (PTDS)
+                    elif "TELEKOMUNIKASI DI STASIUN" in text_flat:
+                        is_special_doc = True
+                        target_keyword = "PTDS"
+                        kategori_nama = "PTDS"
+                        kode_ceklis = "BPBKS15"
+                        
+                        if "BOGORPALEDANG" in text_flat or "PALEDANG" in text_flat: loc_id = "BOP"
+                        elif "BOGOR" in text_flat: loc_id = "BOO"
+                        elif "CILEBUT" in text_flat: loc_id = "CLT"
+                        elif "BATUTULIS" in text_flat: loc_id = "BTT"
+                        elif "MASENG" in text_flat: loc_id = "MSG"
+                        elif "CIOMAS" in text_flat: loc_id = "COS"
+                        elif "CIGOMBONG" in text_flat: loc_id = "CGB"
+                        else: loc_id = "LOKASI"
+                        
+                        assets_found.append({"id": "", "loc": loc_id})
+
+                    # 7. TELKOM DI LUAR STASIUN (PTLS)
+                    elif "TELEKOMUNIKASI DI LUAR STASIUN" in text_flat:
+                        is_special_doc = True
+                        target_keyword = "PTLS"
+                        kategori_nama = "PTLS"
+                        kode_ceklis = "BPBKS16"
+                        
+                        if "BOGORPALEDANG" in text_flat or "PALEDANG" in text_flat: loc_id = "BOP"
+                        elif "BOGOR" in text_flat: loc_id = "BOO"
+                        elif "CILEBUT" in text_flat: loc_id = "CLT"
+                        elif "BATUTULIS" in text_flat: loc_id = "BTT"
+                        elif "MASENG" in text_flat: loc_id = "MSG"
+                        elif "CIOMAS" in text_flat: loc_id = "COS"
+                        elif "CIGOMBONG" in text_flat: loc_id = "CGB"
+                        else: loc_id = "LOKASI"
+                        
+                        assets_found.append({"id": "", "loc": loc_id})
+
+                    # 8. CATU DAYA
                     elif "CATU DAYA" in text_flat:
                         is_special_doc = True
                         target_keyword = "CATU DAYA"
@@ -240,7 +314,7 @@ if uploaded_files:
                         
                         assets_found.append({"id": "", "loc": loc_id})
 
-                    # 6. SERAT OPTIK NORMAL (TANPA JPL)
+                    # 9. SERAT OPTIK NORMAL (TANPA JPL)
                     elif "SERAT OPTIK" in text_flat and "JPL" not in text_flat:
                         is_special_doc = True
                         target_keyword = "SERAT OPTIK"

@@ -141,7 +141,7 @@ if uploaded_files:
                     is_special_doc = False
 
                     # ====================================================
-                    # GERBANG A: DOKUMEN SPESIAL (1 FILE UTUH)
+                    # GERBANG A: DOKUMEN SPESIAL (Pencegatan 1 File Utuh)
                     # ====================================================
                     
                     # 1. PENGAMAN WESEL / POINT LOCK
@@ -193,27 +193,25 @@ if uploaded_files:
                         
                         assets_found.append({"id": "", "loc": loc_id})
 
-                    # 4. PINTU PERLINTASAN (PTPP - Mencakup Peralatan & Telekomunikasi)
+                    # 4. PINTU PERLINTASAN (PTPP)
                     elif "PINTU PERLINTASAN" in text_flat:
                         is_special_doc = True
                         target_keyword = "PINTU PERLINTASAN"
                         kategori_nama = "PINTU PERLINTASAN"
-                        kode_ceklis = "BPBKS17" 
+                        kode_ceklis = "BPBKS17"
                         
-                        # Regex Super Pintar: Abaikan JPL10499, tembus kata ELEKTRIK/NO, tangkap angka + Lokasi
+                        # Regex Super Pintar: Mengabaikan JPL10499, melompati "ELEKTRIK NO", tangkap angka dan lokasi
                         jpl_match = re.search(r'JPL\s+(?:ELEKTRIK\s+)?(?:NO[\.\s]*)?(\d+)\b((?:\s*[A-Z\-]+)*)', text_flat)
                         
                         if jpl_match:
                             angka_jpl = jpl_match.group(1).strip()
                             lokasi_raw = jpl_match.group(2).strip() if jpl_match.group(2) else ""
                             
-                            # Bersihkan dari kata-kata form standar yang mungkin ikut tersapu
                             for stop_word in ["LOKASI", "TANGGAL", "DISETUJUI", "BOGOR"]:
                                 if stop_word in lokasi_raw:
                                     lokasi_raw = lokasi_raw.split(stop_word)[0]
                                     
                             lokasi_clean = lokasi_raw.strip()
-                            # Buang tanda strip yang tertinggal di awal/akhir jika ada
                             lokasi_clean = re.sub(r'^-|-$', '', lokasi_clean).strip()
                             
                             aid = f"JPL {angka_jpl}"
@@ -266,12 +264,11 @@ if uploaded_files:
                     # ====================================================
                     
                     if not is_special_doc:
-                        # Tentukan target dari nama file
                         if any(x in name_only for x in ["WESEL", "WLSE"]):
                             target_keyword, kode_ceklis, kategori_nama = "WESEL", "BPBYE1", "WESEL"
                         elif any(x in name_only for x in ["AXLE", "COUNTER", "AXL"]):
                             target_keyword, kode_ceklis, kategori_nama = "AXLE", "BPBYE7", "AXC"
-                        elif any(x in name_only for x in ["SERAT OPTIK", "SO"]): # Khusus Serat Optik JPL masuk sini
+                        elif any(x in name_only for x in ["SERAT OPTIK", "SO"]): 
                             target_keyword, kode_ceklis, kategori_nama = "SERAT OPTIK", "BPBKF4", "SERAT OPTIK"
                         elif any(x in name_only for x in ["SINYAL", "BLOK", "ZP"]):
                             target_keyword, kode_ceklis, kategori_nama = "SINYAL", "BPBYE3", "SINYAL"
@@ -293,7 +290,6 @@ if uploaded_files:
                                     final = [w for w in words if w not in noise]
                                     
                                     if final:
-                                        # Pengecekan ekstra untuk Serat Optik JPL
                                         jpl_match = re.search(r'(JPL\s+\d+\b(?:\s+[A-Z-]+)?)', line)
                                         
                                         if target_keyword == "SERAT OPTIK" and jpl_match:

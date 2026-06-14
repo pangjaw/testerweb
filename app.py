@@ -207,7 +207,7 @@ if uploaded_files:
                         is_special_doc = True
                         target_keyword = "PTPP"
                         kategori_nama = "PTPP"
-                        kode_ceklis = "BPBKS18"
+                        kode_ceklis = "BPBKS17"
                         
                         # Extract JPL seperti PINTU PERLINTASAN
                         jpl_match = re.search(r'JPL\s+(?:ELEKTRIK\s+)?(?:NO[\.\s]*)?([\d]+)\b((?:\s*[A-Z\-]+)*)', text_flat)
@@ -331,6 +331,137 @@ if uploaded_files:
                         else: loc_id = "LOKASI"
                         
                         assets_found.append({"id": "", "loc": loc_id})
+
+                    # ====================================================
+                    # TEMPLATE KODE CEKLIS TAMBAHAN (READY FOR FUTURE USE)
+                    # ====================================================
+                    # Kode berikut siap untuk diaktifkan ketika ada dokumen baru
+                    # Sesuaikan keyword deteksi sesuai konten OCR dokumen
+                    
+                    # BPBYE4 - Perawatan Peralatan CTC CTS 1 Bulanan
+                    # elif "CTC" in text_flat or "CTS" in text_flat:
+                    #     is_special_doc = True
+                    #     target_keyword = "CTC_CTS"
+                    #     kategori_nama = "CTC CTS"
+                    #     kode_ceklis = "BPBYE4"
+                    #     # Extract lokasi logic here
+                    #     assets_found.append({"id": "", "loc": loc_id})
+                    
+                    # BPBYE5 - Perawatan Axle Counter Siemens 1 Bulanan
+                    # elif "AXLE" in text_flat and "SIEMENS" in text_flat:
+                    #     is_special_doc = True
+                    #     target_keyword = "AXC_SIEMENS"
+                    #     kategori_nama = "AXC SIEMENS"
+                    #     kode_ceklis = "BPBYE5"
+                    #     # Extract ZP logic here
+                    #     assets_found.append({"id": aid, "loc": loc_id})
+                    
+                    # BPBYE6 - Perawatan Axle Counter Altpro 1 Bulanan
+                    # elif "AXLE" in text_flat and "ALTPRO" in text_flat:
+                    #     is_special_doc = True
+                    #     target_keyword = "AXC_ALTPRO"
+                    #     kategori_nama = "AXC ALTPRO"
+                    #     kode_ceklis = "BPBYE6"
+                    #     assets_found.append({"id": aid, "loc": loc_id})
+                    
+                    # BPBYE8 - Perawatan Axle Counter Thales 1 Bulanan
+                    # elif "AXLE" in text_flat and "THALES" in text_flat:
+                    #     is_special_doc = True
+                    #     target_keyword = "AXC_THALES"
+                    #     kategori_nama = "AXC THALES"
+                    #     kode_ceklis = "BPBYE8"
+                    #     assets_found.append({"id": aid, "loc": loc_id})
+                    
+                    # BPBYE9 - Perawatan Axle Counter Esso-M 1 Bulanan
+                    # elif "AXLE" in text_flat and "ESSO" in text_flat:
+                    #     is_special_doc = True
+                    #     target_keyword = "AXC_ESSOM"
+                    #     kategori_nama = "AXC ESSO-M"
+                    #     kode_ceklis = "BPBYE9"
+                    #     assets_found.append({"id": aid, "loc": loc_id})
+                    
+                    # BPBYE10 - Perawatan Track Circuit 1 Bulanan
+                    # elif "TRACK CIRCUIT" in text_flat:
+                    #     is_special_doc = True
+                    #     target_keyword = "TRACK_CIRCUIT"
+                    #     kategori_nama = "TRACK CIRCUIT"
+                    #     kode_ceklis = "BPBYE10"
+                    #     assets_found.append({"id": "", "loc": loc_id})
+                    
+                    # BPBYE11 - Perawatan Location Case 1 Bulanan
+                    # elif "LOCATION CASE" in text_flat:
+                    #     is_special_doc = True
+                    #     target_keyword = "LOCATION_CASE"
+                    #     kategori_nama = "LOCATION CASE"
+                    #     kode_ceklis = "BPBYE11"
+                    #     assets_found.append({"id": "", "loc": loc_id})
+                    
+                    # BPBYE12 - Perawatan Point Lock Perintang Pelalau 2 Mingguan
+                    # elif "POINT LOCK" in text_flat and "PELALAU" in text_flat:
+                    #     is_special_doc = True
+                    #     target_keyword = "POINT_LOCK_PELALAU"
+                    #     kategori_nama = "POINT LOCK PELALAU"
+                    #     kode_ceklis = "BPBYE12"
+                    #     assets_found.append({"id": aid, "loc": loc_id})
+                    
+                    # BPBYE13 - Perawatan Peralatan Pintu Perlintasan 1 Bulanan
+                    # (NOTE: Hati-hati, overlap dengan PINTU PERLINTASAN)
+                    # elif "PERALATAN PINTU PERLINTASAN" in text_flat:
+                    #     is_special_doc = True
+                    #     target_keyword = "PINTU_PERLINTASAN_PERALATAN"
+                    #     kategori_nama = "PINTU PERLINTASAN PERALATAN"
+                    #     kode_ceklis = "BPBYE13"
+                    #     assets_found.append({"id": "", "loc": loc_id})
+                    
+                    # BPBYE15 - Perawatan Wesel Terlayan Setempat Elektrik 1 Bulanan
+                    # elif "WESEL" in text_flat and "TERLAYAN SETEMPAT" in text_flat:
+                    #     is_special_doc = True
+                    #     target_keyword = "WESEL_TERLAYAN"
+                    #     kategori_nama = "WESEL TERLAYAN"
+                    #     kode_ceklis = "BPBYE15"
+                    #     assets_found.append({"id": aid, "loc": loc_id})
+                    
+                    # BPBKS1-14 - Radio & Telkom Series (Uncomment saat diperlukan)
+                    # elif "RADIO LOKOMOTIF" in text_flat:
+                    #     if "TAIT" in text_flat:
+                    #         kode_ceklis = "BPBKS10"  # BPBKS10 - TAIT 3 Bulanan
+                    #     elif "HARIAN" in text_flat:
+                    #         kode_ceklis = "BPBKS1"   # BPBKS1 - Harian
+                    #     else:
+                    #         kode_ceklis = "BPBKS2"   # BPBKS2 - 3 Bulanan
+                    #     is_special_doc = True
+                    #     target_keyword = "RADIO_LOKOMOTIF"
+                    #     kategori_nama = "RADIO LOKOMOTIF"
+                    #     assets_found.append({"id": "", "loc": loc_id})
+                    
+                    # BPBKF1-3 - Radio Basestation Series
+                    # elif "RADIO BASESTATION" in text_flat:
+                    #     if "TAIT" in text_flat:
+                    #         kode_ceklis = "BPBKF3"   # BPBKF3 - Tait
+                    #     elif "DIGITAL" in text_flat:
+                    #         kode_ceklis = "BPBKF2"   # BPBKF2 - Digital
+                    #     else:
+                    #         kode_ceklis = "BPBKF1"   # BPBKF1 - Standard
+                    #     is_special_doc = True
+                    #     target_keyword = "RADIO_BASESTATION"
+                    #     kategori_nama = "RADIO BASESTATION"
+                    #     assets_found.append({"id": "", "loc": loc_id})
+                    
+                    # BPBKF5 - Perawatan Saluran Blok 1 Bulanan
+                    # elif "SALURAN BLOK" in text_flat:
+                    #     is_special_doc = True
+                    #     target_keyword = "SALURAN_BLOK"
+                    #     kategori_nama = "SALURAN BLOK"
+                    #     kode_ceklis = "BPBKF5"
+                    #     assets_found.append({"id": "", "loc": loc_id})
+                    
+                    # BPBKF6 - Perawatan Saluran Blok 6 Bulanan
+                    # elif "SALURAN BLOK" in text_flat and "6 BULANAN" in text_flat:
+                    #     is_special_doc = True
+                    #     target_keyword = "SALURAN_BLOK_6BLN"
+                    #     kategori_nama = "SALURAN BLOK 6BLN"
+                    #     kode_ceklis = "BPBKF6"
+                    #     assets_found.append({"id": "", "loc": loc_id})
 
 
                     # ====================================================

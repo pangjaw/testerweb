@@ -74,6 +74,23 @@ with col1:
         key=f"uploader_{st.session_state['file_uploader_key']}"
     )
 
+# --- FUNGSI OCR TERPISAH (CACHING AGAR TIDAK LELET) ---
+@st.cache_data(show_spinner=False, max_entries=50)
+def process_pdf_ocr(file_bytes, debug=False):
+    images = convert_from_bytes(file_bytes, dpi=150, first_page=1, last_page=1)
+    img = images[0].convert('L')
+    img = ImageOps.autocontrast(img)
+    width, height = img.size
+    
+    img_cropped = img.crop((0.0, 0.0, width * 1.0, height * 0.30)) 
+    text_crop = pytesseract.image_to_string(img_cropped).upper()
+    
+    # Clean memory
+    del img, images
+    gc.collect()
+    
+    return text_crop, img_cropped
+
 # --- 4. PROSES DATA ---
 if uploaded_files:
     zip_buffer = BytesIO()
@@ -112,24 +129,19 @@ if uploaded_files:
                 kategori_nama = ""
 
                 try:
-                    images = convert_from_bytes(f.getvalue(), dpi=150, first_page=1, last_page=1)
-                    img = images[0].convert('L')
-                    img = ImageOps.autocontrast(img)
-                    width, height = img.size
-                    
-                    # Area crop diperlebar sedikit (0.30) agar tabel lokasi Dokumen Spesial terbaca
-                    img_cropped = img.crop((0.0, 0.0, width * 1.0, height * 0.30)) 
+                    file_bytes = f.getvalue()
+                    text_crop, img_cropped = process_pdf_ocr(file_bytes, debug_mode)
                     
                     if debug_mode: 
                         st.image(img_cropped, caption=f"Scan: {f.name}")
-                        
-                    text_crop = pytesseract.image_to_string(img_cropped).upper()
+                        with st.expander(f"👀 Intip Teks OCR: {f.name}"):
+                            st.text(text_crop)
+                            
                     text_flat = text_crop.replace('\n', ' ')
-                    
                     is_special_doc = False
 
                     # ====================================================
-                    # GERBANG A: DOKUMEN SPESIAL (Pencegatan dari Dalam)
+                    # GERBANG A: DOKUMEN SPESIAL (1 FILE UTUH)
                     # ====================================================
                     
                     # 1. PENGAMAN WESEL / POINT LOCK
@@ -142,7 +154,6 @@ if uploaded_files:
                         w_match = re.search(r'(W\d+)', text_flat)
                         aid = w_match.group(1) if w_match else "W_UNKNOWN"
                         loc_id = "BOO" if "BOGOR" in text_flat else "LOKASI"
-                        
                         assets_found.append({"id": aid, "loc": loc_id})
 
                     # 2. PDSE
@@ -181,24 +192,27 @@ if uploaded_files:
                         kategori_nama = "PINTU PERLINTASAN"
                         kode_ceklis = "BPBKS17"
                         
-                        # Regex lebih longgar: Toleransi tanpa spasi, pakai titik, atau strip (JPL07, JPL.07, JPL 07)
-                        jpl_match = re.search(r'(JPL[\s\.\-\:]*\d+\b(?:\s+[A-Z-]+)?)', text_flat)
+                        # Regex Super Pintar: Abaikan JPL10499, tembus kata ELEKTRIK/NO, tangkap angka + Lokasi
+                        jpl_match = re.search(r'JPL\s+(?:ELEKTRIK\s+)?(?:NO[\.\s]*)?(\d+)\b((?:\s*[A-Z\-]+)*)', text_flat)
                         
                         if jpl_match:
-                            jpl_full = jpl_match.group(1).strip()
-                            # Bersihkan titik/strip jadi spasi agar mudah dipecah
-                            jpl_clean = re.sub(r'[\.\-\:]', ' ', jpl_full)
-                            words = jpl_clean.split()
+                            angka_jpl = jpl_match.group(1).strip()
+                            lokasi_raw = jpl_match.group(2).strip() if jpl_match.group(2) else ""
                             
-                            if len(words) > 2:
-                                aid = f"{words[0]} {words[1]}"
-                                loc_id = " ".join(words[2:])
-                            else:
-                                aid = f"{words[0]} {words[1]}" if len(words) >= 2 else jpl_clean
-                                loc_id = "" # Kosongkan agar tulisan "LOKASI" tidak muncul
+                            # Bersihkan dari kata-kata form standar yang mungkin ikut tersapu
+                            for stop_word in ["LOKASI", "TANGGAL", "DISETUJUI", "BOGOR"]:
+                                if stop_word in lokasi_raw:
+                                    lokasi_raw = lokasi_raw.split(stop_word)[0]
+                                    
+                            lokasi_clean = lokasi_raw.strip()
+                            # Buang tanda strip yang tertinggal di awal/akhir jika ada
+                            lokasi_clean = re.sub(r'^-|-$', '', lokasi_clean).strip()
+                            
+                            aid = f"JPL {angka_jpl}"
+                            loc_id = lokasi_clean
                         else:
                             aid = "JPL"
-                            loc_id = "" # Kosongkan agar tulisan "LOKASI" tidak muncul
+                            loc_id = "" 
                             
                         assets_found.append({"id": aid, "loc": loc_id})
 
@@ -280,11 +294,7 @@ if uploaded_files:
                                         elif target_keyword == "AXLE" and not aid.startswith("ZP"): aid = f"ZP{aid}"
                                         
                                         assets_found.append({"id": aid, "loc": loc_id})
-
-                    # Pembersihan memori untuk mencegah crash
-                    del img, img_cropped, images
-                    gc.collect()
-                    
+                                        
                 except Exception as e:
                     duplicate_errors.append(f"❌ {f.name}: OCR Error ({str(e)})")
 
@@ -294,15 +304,14 @@ if uploaded_files:
                         aid_clean = asset["id"].strip()
                         aloc_clean = asset["loc"].strip()
                         
-                        # Gabungkan string identitas (menghindari dobel spasi jika aid/loc kosong)
                         identitas = f"{kategori_nama} {aid_clean} {aloc_clean}".replace("  ", " ").strip()
                         
                         if format_eksklusif:
                             new_name = f"{prefix_periode}_Resor 1.21 Boo_{kode_ceklis}_{jenis_kegiatan}_{identitas}_{tgl_full}.pdf"
-                            # Pembersih jika terjadi underscore berlebih
                             new_name = new_name.replace("__", "_").replace(" _", "_")
                         else:
                             new_name = f"{jenis_kegiatan.upper()} {identitas} {tgl_full}.pdf"
+                            new_name = new_name.replace("  ", " ")
                             
                         if new_name not in unique_filenames:
                             zip_f.writestr(new_name, f.getvalue())

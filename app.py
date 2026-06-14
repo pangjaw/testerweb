@@ -44,82 +44,82 @@ def extract_pdf_data(name_only, file_bytes):
     thn_angka = tgl_match.group(3)
     prefix_periode = f"{thn_angka}-{bln_angka}"
     
-    # --- PINTU GERBANG PENENTUAN JENIS DOKUMEN ---
-    target_keyword = None
-    # "POINT" dipindahkan ke daftar Dokumen Spesial karena formatnya berbeda
-    if any(x in name_only for x in ["WESEL", "WLSE"]) and "POINT" not in name_only: 
-        target_keyword, kode_ceklis, kategori_nama = "WESEL", "BPBYE1", "WESEL"
-    elif any(x in name_only for x in ["AXLE", "COUNTER", "AXL"]): 
-        target_keyword, kode_ceklis, kategori_nama = "AXLE", "BPBYE7", "AXC"
-    elif any(x in name_only for x in ["SINYAL", "BLOK", "ZP"]): 
-        target_keyword, kode_ceklis, kategori_nama = "SINYAL", "BPBYE3", "SINYAL"
-    # Buka gerbang khusus untuk dokumen spesial TERMASUK POINT LOCK
-    elif any(x in name_only for x in ["TELEKOMUNIKASI", "CATU DAYA", "SERAT OPTIK", "PERSINYALAN ELEKTRIK", "PDSE", "POINT"]):
-        target_keyword, kode_ceklis, kategori_nama = "SPESIAL", "", ""
-
-    if target_keyword:
-        try:
-            images = convert_from_bytes(file_bytes, dpi=150, first_page=1, last_page=1)
-            img = images[0].convert('L') 
-            img = ImageOps.autocontrast(img) 
-            
-            width, height = img.size
-            img_cropped = img.crop((0.0, 0.0, width*1.0, height*0.35))
-            
-            text_crop = pytesseract.image_to_string(img_cropped).upper()
-            text_flat = re.sub(r'\s+', ' ', text_crop)
-            debug_text = text_flat
-            
-            # --- JALUR A: LOGIKA DOKUMEN SPESIAL BARU ---
-            if target_keyword == "SPESIAL":
-                aid = "SPESIAL"
-                loc_code = "LOKASI"
+    try:
+        images = convert_from_bytes(file_bytes, dpi=150, first_page=1, last_page=1)
+        img = images[0].convert('L') 
+        img = ImageOps.autocontrast(img) 
+        
+        width, height = img.size
+        img_cropped = img.crop((0.0, 0.0, width*1.0, height*0.35))
+        
+        text_crop = pytesseract.image_to_string(img_cropped).upper()
+        text_flat = re.sub(r'\s+', ' ', text_crop)
+        debug_text = text_flat
+        
+        # --- PEMBAGIAN KATEGORI KHUSUS SERAT OPTIK ---
+        is_serat_optik = "SERAT OPTIK" in text_flat or "SERAT OPTIK" in name_only
+        is_so_jpl = is_serat_optik and ("JPL" in name_only or "SERAT OPTIK JPL" in text_flat)
+        is_so_normal = is_serat_optik and not is_so_jpl
+        
+        # --- BLOK A: LOGIKA DOKUMEN SPESIAL (1 File = 1 Stasiun/Lokasi) ---
+        is_ptds = "TELEKOMUNIKASI DI STASIUN" in text_flat
+        is_ptls = "TELEKOMUNIKASI DI LUAR STASIUN" in text_flat
+        is_ptpp = "TELEKOMUNIKASI DI PINTU PERLINTASAN" in text_flat
+        is_catudaya = "CATU DAYA" in text_flat
+        is_pdse = "PERALATAN DALAM PERSINYALAN ELEKTRIK" in text_flat
+        
+        if any([is_ptds, is_ptls, is_ptpp, is_catudaya, is_so_normal, is_pdse]):
+            if is_ptds:
+                aid, kode_ceklis = "PTDS", "BPBKS15"
+            elif is_ptls:
+                aid, kode_ceklis = "PTLS", "BPBKS16"
+            elif is_ptpp:
+                aid, kode_ceklis = "PTPP", "BPBKS17"
+            elif is_catudaya:
+                aid, kode_ceklis = "CATUDAYA", "BPBYE14"
+            elif is_so_normal:
+                aid, kode_ceklis = "SERAT OPTIK", "BPBKF4"
+            elif is_pdse:
+                aid, kode_ceklis = "PDSE", "BPBYE2"
                 
-                # --- TAMBAHAN BARU: LOGIKA POINT LOCK ---
-                if "POINT LOCK" in text_flat or "PENGAMAN WESEL" in text_flat:
-                    # Cari pola W + angka (contoh: W81, W12)
-                    match_wesel = re.search(r'W\d+', text_flat)
-                    if match_wesel:
-                        aid = match_wesel.group(0).strip()
-                    else:
-                        aid = "WESEL" # Fallback jika gagal baca angka W
-                    kode_ceklis = "BPBYE1" 
-                    kategori_nama = "WESEL WPENGAMAN"
-                # ----------------------------------------
-                elif "TELEKOMUNIKASI DI STASIUN" in text_flat:
-                    aid, kode_ceklis = "PTDS", "BPBKS15"
-                elif "TELEKOMUNIKASI DI LUAR STASIUN" in text_flat:
-                    aid, kode_ceklis = "PTLS", "BPBKS16"
-                elif "TELEKOMUNIKASI DI PINTU PERLINTASAN" in text_flat:
-                    aid, kode_ceklis = "PTPP", "BPBKS17"
-                    match_jpl = re.search(r'JPL\s+\d+\b(?:\s+[A-Z\-]+)?', text_flat)
-                    if match_jpl: loc_code = match_jpl.group(0).strip()
-                elif "CATU DAYA" in text_flat:
-                    aid, kode_ceklis = "CATUDAYA", "BPBYE14"
-                elif "PERALATAN DALAM PERSINYALAN ELEKTRIK" in text_flat:
-                    aid, kode_ceklis = "PDSE", "BPBYE2"
-                elif "SERAT OPTIK" in text_flat:
-                    aid, kode_ceklis = "SERAT OPTIK", "BPBKF4"
-                    match_jpl = re.search(r'JPL\s+\d+\b(?:\s+[A-Z\-]+)?', text_flat)
-                    if match_jpl: 
-                        loc_code = match_jpl.group(0).strip()
-
-                if loc_code == "LOKASI":
-                    if "PALEDANG" in text_flat: loc_code = "BOP"
-                    elif "BOGOR" in text_flat: loc_code = "BOO"
-                    elif "CILEBUT" in text_flat: loc_code = "CLT"
-                    elif "BATUTULIS" in text_flat: loc_code = "BTT"
-                    elif "MASENG" in text_flat: loc_code = "MSG"
-                    elif "CIOMAS" in text_flat: loc_code = "COS"
-                    elif "CIGOMBONG" in text_flat: loc_code = "CGB"
-                    elif "BOJONG" in text_flat or "BJD" in text_flat: loc_code = "BJD"
-                    elif "CITAYAM" in text_flat: loc_code = "CTA"
-                    elif "DEPOK" in text_flat: loc_code = "DP"
-
-                assets_found.append({"id": aid, "loc": loc_code})
-
-            # --- JALUR B: LOGIKA ORISINAL 100% (WESEL, AXLE, SINYAL) ---
-            else:
+            loc_code = "LOKASI"
+            
+            if is_ptpp:
+                match_jpl = re.search(r'JPL\s+\d+\b(?:\s+[A-Z\-]+)?', text_flat)
+                if match_jpl:
+                    loc_code = match_jpl.group(0).strip()
+            elif is_ptds or is_ptls:
+                if "PALEDANG" in text_flat: loc_code = "BOP"
+                elif "BOGOR" in text_flat: loc_code = "BOO"
+                elif "CILEBUT" in text_flat: loc_code = "CLT"
+                elif "BATUTULIS" in text_flat: loc_code = "BTT"
+                elif "MASENG" in text_flat: loc_code = "MSG"
+                elif "CIOMAS" in text_flat: loc_code = "COS"
+                elif "CIGOMBONG" in text_flat: loc_code = "CGB"
+            else: 
+                # Standar PDSE, Catu Daya, Serat Optik Normal (Bangunan ER dll)
+                if "BOGOR" in text_flat: loc_code = "BOO"
+                elif "CILEBUT" in text_flat: loc_code = "CLT"
+                elif "BOJONG" in text_flat or "BJD" in text_flat: loc_code = "BJD"
+                elif "CITAYAM" in text_flat: loc_code = "CTA"
+                elif "DEPOK" in text_flat: loc_code = "DP"
+                
+            kategori_nama = "" 
+            assets_found = [{"id": aid, "loc": loc_code}]
+            
+        # --- BLOK B: LOGIKA DOKUMEN STANDAR (Multi-Aset dalam Tabel) ---
+        else:
+            target_keyword = None
+            if any(x in name_only for x in ["WESEL", "WLSE"]): 
+                target_keyword, kode_ceklis, kategori_nama = "WESEL", "BPBYE1", "WESEL"
+            elif any(x in name_only for x in ["AXLE", "COUNTER", "AXL"]): 
+                target_keyword, kode_ceklis, kategori_nama = "AXLE", "BPBYE7", "AXC"
+            elif any(x in name_only for x in ["SINYAL", "BLOK", "ZP"]): 
+                target_keyword, kode_ceklis, kategori_nama = "SINYAL", "BPBYE3", "SINYAL"
+            elif is_so_jpl:
+                target_keyword, kode_ceklis, kategori_nama = "SO_JPL", "BPBKF4", "SERAT OPTIK"
+                
+            if target_keyword:
                 lines = [line.strip() for line in text_crop.split('\n') if line.strip()]
                 noise = ["PERAWATAN", "PEMERIKSAAN", "MINGGUAN", "BULANAN", "TAHUNAN", "CEKLIS", "ULANG", 
                          "PENGGERAK", "WESEL", "ELEKTRIK", "AXLE", "COUNTER", "SIEMENS", "PERAGA", 
@@ -127,11 +127,23 @@ def extract_pdf_data(name_only, file_bytes):
                          "MASUK", "KELUAR", "MUKA", "DAN", "LANGSIR", "JALAN"]
 
                 for line in lines:
-                    if any(k in line for k in ["SINYAL", "BLOK", "WESEL", "AXLE", "COUNTER"]):
+                    if any(judul in line for judul in ["BULANAN", "MINGGUAN", "TAHUNAN"]):
+                        continue
                         
-                        if any(judul in line for judul in ["BULANAN", "MINGGUAN", "TAHUNAN"]):
-                            continue
-                        
+                    # 1. Parsing Baris Khusus Serat Optik JPL (Pecah berdasarkan Regex JPL)
+                    if target_keyword == "SO_JPL":
+                        if "JPL" in line:
+                            match_jpl = re.search(r'JPL\s+\d+\b(?:\s+[A-Z\-]+)?', line)
+                            if match_jpl:
+                                jpl_str = match_jpl.group(0).strip()
+                                parts = jpl_str.split(" ", 2)
+                                
+                                aid_jpl = f"{parts[0]} {parts[1]}" if len(parts) >= 2 else parts[0]
+                                loc_jpl = parts[2] if len(parts) == 3 else "LOKASI"
+                                assets_found.append({"id": aid_jpl, "loc": loc_jpl})
+                                
+                    # 2. Parsing Baris Standar (Wesel, Axle, Sinyal)
+                    elif any(k in line for k in ["SINYAL", "BLOK", "WESEL", "AXLE", "COUNTER"]):
                         clean = line.split(":")[-1].strip() if ":" in line else line.strip()
                         words = clean.replace(".", " ").split()
                         final = [w for w in words if w not in noise]
@@ -148,14 +160,15 @@ def extract_pdf_data(name_only, file_bytes):
                             
                             if target_keyword == "WESEL" and not aid.startswith("W"): aid = f"W{aid}"
                             elif target_keyword == "AXLE" and not aid.startswith("ZP"): aid = f"ZP{aid}"
-                            assets_found.append({"id": aid, "loc": loc_id})
                             
-            del img, img_cropped, images
-            gc.collect() 
-        except Exception as e:
-            ocr_error = f"OCR Error ({str(e)})"
-    else:
-        ocr_error = "Bukan dokumen ceklis yang dikenali."
+                            assets_found.append({"id": aid, "loc": loc_id})
+            else:
+                ocr_error = "Bukan dokumen ceklis yang dikenali (Spesial maupun Multi-Aset)."
+                
+        del img, img_cropped, images
+        gc.collect() 
+    except Exception as e:
+        ocr_error = f"OCR Error ({str(e)})"
         
     return tgl_full, prefix_periode, kode_ceklis, kategori_nama, assets_found, ocr_error, debug_text
 

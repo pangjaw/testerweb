@@ -224,9 +224,10 @@ hermes cronjob run dde2abeef641
 
 **🤖 DIKO IS READY FOR WORK!**
 
-**Job ID:** dde2abeef641
+**Job ID:** e32d7c93086e
 **Status:** ACTIVE ✅
-**Availability:** 24/7
+**Mode:** ON-DEMAND ONLY (bekerja saat dibutuhkan, tanpa schedule)
+**Availability:** Kapan saja saat diassign
 **Next Action:** Awaiting your first task
 
 Assign Diko a file and watch it process automatically! 🚀

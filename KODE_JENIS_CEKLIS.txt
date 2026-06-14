@@ -1,0 +1,12 @@
+# DAFTAR KODE CEKLIS - JENIS CEKLIS
+
+BPBYE1 - WESEL / POINT LOCK
+BPBYE2 - PDSE (Peralatan Dalam Persinyalan Elektrik)
+BPBYE3 - SINYAL (Peraga Sinyal Elektrik)
+BPBYE7 - AXC (Axle Counter)
+BPBYE14 - CATU DAYA (Power Supply)
+BPBKS15 - PTDS (Telkom Di Stasiun)
+BPBKS16 - PTLS (Telkom Di Luar Stasiun)
+BPBKS17 - PINTU PERLINTASAN (Level Crossing Gate)
+BPBKS18 - PTPP (Telkom Di Pintu Perlintasan)
+BPBKF4 - SERAT OPTIK (Fiber Optic)

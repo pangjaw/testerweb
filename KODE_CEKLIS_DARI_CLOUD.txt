@@ -1,0 +1,90 @@
+# 📋 DAFTAR LENGKAP KODE CEKLIS DARI CLOUD KAI
+# Source: https://cloud.kai.id/s/m52fHjPzkxLrZwE
+# Last Updated: 2026-06-14
+
+## BPBYE Series (15 kode)
+
+BPBYE1 - Perawatan Wesel Elektrik 2 Mingguan
+BPBYE2 - Perawatan Peralatan Dalam Persinyalan Elektrik 1 Bulanan
+BPBYE3 - Perawatan Peraga Persinyalan Elektrik 1 Bulanan
+BPBYE4 - Perawatan Peralatan CTC CTS 1 Bulanan
+BPBYE5 - Perawatan Axle Counter Siemens 1 Bulanan
+BPBYE6 - Perawatan Axle Counter Altpro 1 Bulanan
+BPBYE7 - Perawatan Axle Counter Frauscher 1 Bulanan
+BPBYE8 - Perawatan Axle Counter Thales 1 Bulanan
+BPBYE9 - Perawatan Axle Counter Esso-M 1 Bulanan
+BPBYE10 - Perawatan Track Circuit 1 Bulanan
+BPBYE11 - Perawatan Location Case 1 Bulanan
+BPBYE12 - Perawatan Point Lock Perintang Pelalau 2 Mingguan
+BPBYE13 - Perawatan Peralatan Pintu Perlintasan 1 Bulanan
+BPBYE14 - Perawatan Catu Daya 1 Bulanan
+BPBYE15 - Perawatan Wesel Terlayan Setempat Elektrik 1 Bulanan
+
+## BPBKS Series (17 kode)
+
+BPBKS1 - Perawatan Peralatan Radio Lokomotif Harian
+BPBKS2 - Perawatan Peralatan Radio Lokomotif 3 Bulanan
+BPBKS3 - Perawatan Peralatan Radio Lokomotif 1 Tahunan
+BPBKS4 - Perawatan Peralatan Radio Way Station 3 Bulanan
+BPBKS5 - Perawatan Peralatan Sistem Waystation 1 Tahunan
+BPBKS6 - Perawatan Peralatan Pusat Kendali (PK) Analog 6 Bulanan
+BPBKS7 - Perawatan Peralatan Radio Waystation Digital 3 Bulanan
+BPBKS8 - Perawatan Peralatan Pusat Kendali (PK) Digital 1 Tahunan
+BPBKS9 - Perawatan Peralatan Radio Lokomotif Tait Harian
+BPBKS10 - Perawatan Peralatan Radio Lokomotif Tait 3 Bulanan
+BPBKS11 - Perawatan Peralatan Radio Lokomotif Tait 1 Tahunan
+BPBKS12 - Perawatan Peralatan Radio Waystation Tait 3 Bulanan
+BPBKS13 - Perawatan Peralatan Sistem Waystation Tait 1 Tahunan
+BPBKS14 - Perawatan Peralatan Pusat Kendali (PK) Tait 3 Bulanan
+BPBKS15 - Perawatan Peralatan Telekomunikasi di Stasiun 1 Bulanan
+BPBKS16 - Perawatan Peralatan Telekomunikasi di Luar Stasiun 1 Bulanan
+BPBKS17 - Perawatan Peralatan Telekomunikasi di Pintu Perlintasan 1 Bulanan
+
+## BPBKF Series (6 kode)
+
+BPBKF1 - Perawatan Peralatan Radio Basestation 6 Bulanan
+BPBKF2 - Perawatan Peralatan Radio Basestation Digital 6 Bulanan
+BPBKF3 - Perawatan Peralatan Radio Basestation Tait 6 Bulanan
+BPBKF4 - Perawatan Serat Optik 1 Bulanan
+BPBKF5 - Perawatan Saluran Blok 1 Bulanan
+BPBKF6 - Perawatan Saluran Blok 6 Bulanan
+
+---
+
+## SUMMARY
+
+Total Kode Ceklis: 38
+
+- BPBYE: 15 kode
+- BPBKS: 17 kode
+- BPBKF: 6 kode
+
+---
+
+## Status di app.py (Current)
+
+Kode yang sudah diimplementasikan di app.py:
+
+✅ BPBYE1 - WESEL
+✅ BPBYE2 - PDSE
+✅ BPBYE3 - SINYAL
+✅ BPBYE7 - AXC (Axle Counter)
+✅ BPBYE14 - CATU DAYA
+✅ BPBKS15 - PTDS (Telkom di Stasiun)
+✅ BPBKS16 - PTLS (Telkom di Luar Stasiun) ⭐ NEW
+✅ BPBKS17 - PINTU PERLINTASAN
+✅ BPBKF4 - SERAT OPTIK
+
+❌ BPBYE4, BPBYE5, BPBYE6, BPBYE8, BPBYE9, BPBYE10, BPBYE11, BPBYE12, BPBYE13, BPBYE15
+❌ BPBKS1, BPBKS2, BPBKS3, BPBKS4, BPBKS5, BPBKS6, BPBKS7, BPBKS8, BPBKS9, BPBKS10, BPBKS11, BPBKS12, BPBKS13, BPBKS14
+❌ BPBKF1, BPBKF2, BPBKF3, BPBKF5, BPBKF6
+
+---
+
+## NOTE: Missing BPBKS18
+
+⚠️ BPBKS17 di cloud = "Perawatan Peralatan Telekomunikasi di Pintu Perlintasan"
+⚠️ app.py menggunakan BPBKS18 untuk "TELKOM DI PINTU PERLINTASAN (PTPP)"
+
+**Perlu klarifikasi:** Apakah BPBKS18 adalah kode baru yang belum ada di cloud, atau ada kesalahan mapping?
+

@@ -113,7 +113,7 @@ def extract_pdf_data(name_only, file_bytes):
                 match_wesel = re.search(r'W\d+', text_flat)
                 aid = match_wesel.group(0).strip() if match_wesel else "WESEL"
                 kode_ceklis = "BPBYE1"
-                kategori_nama = "WPENGAMAN"
+                kategori_nama = "WESEL"
 
             assets_found.append({"id": aid, "loc": loc_code})
             

@@ -181,19 +181,24 @@ if uploaded_files:
                         kategori_nama = "PINTU PERLINTASAN"
                         kode_ceklis = "BPBKS17"
                         
-                        jpl_match = re.search(r'(JPL\s+\d+\b(?:\s+[A-Z-]+)?)', text_flat)
+                        # Regex lebih longgar: Toleransi tanpa spasi, pakai titik, atau strip (JPL07, JPL.07, JPL 07)
+                        jpl_match = re.search(r'(JPL[\s\.\-\:]*\d+\b(?:\s+[A-Z-]+)?)', text_flat)
+                        
                         if jpl_match:
                             jpl_full = jpl_match.group(1).strip()
-                            words = jpl_full.split()
+                            # Bersihkan titik/strip jadi spasi agar mudah dipecah
+                            jpl_clean = re.sub(r'[\.\-\:]', ' ', jpl_full)
+                            words = jpl_clean.split()
+                            
                             if len(words) > 2:
                                 aid = f"{words[0]} {words[1]}"
                                 loc_id = " ".join(words[2:])
                             else:
-                                aid = jpl_full
-                                loc_id = "LOKASI"
+                                aid = f"{words[0]} {words[1]}" if len(words) >= 2 else jpl_clean
+                                loc_id = "" # Kosongkan agar tulisan "LOKASI" tidak muncul
                         else:
                             aid = "JPL"
-                            loc_id = "LOKASI"
+                            loc_id = "" # Kosongkan agar tulisan "LOKASI" tidak muncul
                             
                         assets_found.append({"id": aid, "loc": loc_id})
 
@@ -289,7 +294,7 @@ if uploaded_files:
                         aid_clean = asset["id"].strip()
                         aloc_clean = asset["loc"].strip()
                         
-                        # Gabungkan string identitas (menghindari dobel spasi jika aid kosong seperti PDSE)
+                        # Gabungkan string identitas (menghindari dobel spasi jika aid/loc kosong)
                         identitas = f"{kategori_nama} {aid_clean} {aloc_clean}".replace("  ", " ").strip()
                         
                         if format_eksklusif:
@@ -311,32 +316,33 @@ if uploaded_files:
             status_container.empty()
 
     # --- 6. OUTPUT & DOWNLOAD BLOK ---
-    if processed_files:
-        with btn_col:
-            st.download_button(
-                label="📥 DOWNLOAD ZIP", 
-                data=zip_buffer.getvalue(), 
-                file_name="Hasil_Rename_Sintelis_BOO.zip", 
-                mime="application/zip", 
-                use_container_width=True, 
-                type="primary"
-            )
-        
-        with st.expander(f"✅ Sukses Teridentifikasi ({len(processed_files)})", expanded=True):
-            if processed_files:
-                with st.container(height=150):
-                    for p_file in processed_files: 
-                        st.write(f"📄 {p_file}")
-            else:
-                st.write("Belum ada file yang berhasil diproses.")
+    with col2:
+        if processed_files:
+            with btn_col:
+                st.download_button(
+                    label="📥 DOWNLOAD ZIP", 
+                    data=zip_buffer.getvalue(), 
+                    file_name="Hasil_Rename_Sintelis_BOO.zip", 
+                    mime="application/zip", 
+                    use_container_width=True, 
+                    type="primary"
+                )
+            
+            with st.expander(f"✅ Sukses Teridentifikasi ({len(processed_files)})", expanded=True):
+                if processed_files:
+                    with st.container(height=150):
+                        for p_file in processed_files: 
+                            st.write(f"📄 {p_file}")
+                else:
+                    st.write("Belum ada file yang berhasil diproses.")
 
-    with st.expander(f"❌ Gagal Diproses ({len(duplicate_errors)})", expanded=True):
-        if duplicate_errors:
-            with st.container(height=150):
-                for err in duplicate_errors: 
-                    st.warning(err)
-        else:
-            st.write("Tidak ada kendala pada file.")
+        with st.expander(f"❌ Gagal Diproses ({len(duplicate_errors)})", expanded=True):
+            if duplicate_errors:
+                with st.container(height=150):
+                    for err in duplicate_errors: 
+                        st.warning(err)
+            else:
+                st.write("Tidak ada kendala pada file.")
 
 st.markdown("---")
 st.markdown("Developed by Dika Armansyah | Sintelis 1.21 BOO Utility", unsafe_allow_html=True)

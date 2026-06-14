@@ -1,0 +1,126 @@
+# 🤖 DIKO - QUICK REFERENCE
+
+**Job ID:** dde2abeef641
+**Status:** ✅ ACTIVE & READY
+
+---
+
+## 🎯 BASIC COMMANDS
+
+### Start Processing
+```
+@diko process files: /path/to/file.pdf
+```
+
+### Batch Processing
+```
+@diko process folder: C:\Users\SINTEL 1.21 BOO\Downloads\6. JUNI\
+```
+
+### Check Status
+```
+hermes cronjob list | grep diko
+```
+
+---
+
+## 📥 INPUT FORMATS
+
+**Single File:**
+```
+File: 12-06-2026_PERAWATAN SERAT OPTIK 1 BULANAN_Bogor.pdf
+```
+
+**Multiple Files:**
+```
+Files:
+  - file1.pdf
+  - file2.pdf
+  - file3.pdf
+```
+
+**Folder:**
+```
+Folder: C:\path\to\folder\
+```
+
+---
+
+## ⚙️ SETTINGS
+
+**Format:** BTP BD (default)
+**Activity:** Perawatan (default)
+**Web App:** tester.sintelboo.my.id
+
+---
+
+## 📊 OUTPUT
+
+**Returns:**
+- ✅ Processing status
+- 📄 List of output files
+- ⚠️ Any errors/warnings
+- 📥 Download link
+
+---
+
+## 🚀 TYPICAL WORKFLOW
+
+1. Give file to Diko
+2. Diko uploads to web app
+3. Diko waits for OCR
+4. Diko downloads ZIP
+5. Diko reports results
+
+**Time:** ~2-5 minutes per batch
+
+---
+
+## 📝 EXAMPLE MESSAGES TO DIKO
+
+**Message 1:**
+```
+Diko, proses file ini:
+12-06-2026_PERAWATAN SERAT OPTIK 1 BULANAN_Bogor.pdf
+
+Format: BTP BD
+Tunggu selesai, download hasilnya.
+```
+
+**Message 2:**
+```
+Diko, proses semua PDF di folder:
+C:\Users\SINTEL 1.21 BOO\Downloads\6. JUNI\
+
+Format: BTP BD
+Activity: Perawatan
+Report semua output files.
+```
+
+---
+
+## ⚡ SHORTCUTS
+
+**Daily 9 AM:**
+```bash
+hermes cronjob update dde2abeef641 --schedule "0 9 * * *"
+```
+
+**Every 30 minutes:**
+```bash
+hermes cronjob update dde2abeef641 --schedule "30m"
+```
+
+**Pause Diko:**
+```bash
+hermes cronjob pause dde2abeef641
+```
+
+**Resume Diko:**
+```bash
+hermes cronjob resume dde2abeef641
+```
+
+---
+
+**Diko siap melayani! 🤖**

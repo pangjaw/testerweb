@@ -163,7 +163,15 @@ if uploaded_files:
                         kategori_nama = "PDSE"
                         kode_ceklis = "BPBYE2"
                         
-                        loc_id = "BOP" if "BOGORPALEDANG" in text_flat or "PALEDANG" in text_flat else "BOO" if "BOGOR" in text_flat else "CLT" if "CILEBUT" in text_flat else "LOKASI"
+                        if "BOGORPALEDANG" in text_flat or "PALEDANG" in text_flat: loc_id = "BOP"
+                        elif "BOGOR" in text_flat: loc_id = "BOO"
+                        elif "CILEBUT" in text_flat: loc_id = "CLT"
+                        elif "BATUTULIS" in text_flat: loc_id = "BTT"
+                        elif "MASENG" in text_flat: loc_id = "MSG"
+                        elif "CIOMAS" in text_flat: loc_id = "COS"
+                        elif "CIGOMBONG" in text_flat: loc_id = "CGB"
+                        else: loc_id = "LOKASI"
+                        
                         assets_found.append({"id": "", "loc": loc_id})
 
                     # 3. TELKOM (PTDS / PTLS)
@@ -185,12 +193,12 @@ if uploaded_files:
                         
                         assets_found.append({"id": "", "loc": loc_id})
 
-                    # 4. PINTU PERLINTASAN (PTPP)
-                    elif "PERALATAN PINTU PERLINTASAN" in text_flat:
+                    # 4. PINTU PERLINTASAN (PTPP - Mencakup Peralatan & Telekomunikasi)
+                    elif "PINTU PERLINTASAN" in text_flat:
                         is_special_doc = True
                         target_keyword = "PINTU PERLINTASAN"
                         kategori_nama = "PINTU PERLINTASAN"
-                        kode_ceklis = "BPBKS17"
+                        kode_ceklis = "BPBKS17" 
                         
                         # Regex Super Pintar: Abaikan JPL10499, tembus kata ELEKTRIK/NO, tangkap angka + Lokasi
                         jpl_match = re.search(r'JPL\s+(?:ELEKTRIK\s+)?(?:NO[\.\s]*)?(\d+)\b((?:\s*[A-Z\-]+)*)', text_flat)
@@ -223,7 +231,15 @@ if uploaded_files:
                         kategori_nama = "CATU DAYA"
                         kode_ceklis = "BPBYE14"
                         
-                        loc_id = "BOP" if "BOGORPALEDANG" in text_flat or "PALEDANG" in text_flat else "BOO" if "BOGOR" in text_flat else "LOKASI"
+                        if "BOGORPALEDANG" in text_flat or "PALEDANG" in text_flat: loc_id = "BOP"
+                        elif "BOGOR" in text_flat: loc_id = "BOO"
+                        elif "CILEBUT" in text_flat: loc_id = "CLT"
+                        elif "BATUTULIS" in text_flat: loc_id = "BTT"
+                        elif "MASENG" in text_flat: loc_id = "MSG"
+                        elif "CIOMAS" in text_flat: loc_id = "COS"
+                        elif "CIGOMBONG" in text_flat: loc_id = "CGB"
+                        else: loc_id = "LOKASI"
+                        
                         assets_found.append({"id": "", "loc": loc_id})
 
                     # 6. SERAT OPTIK NORMAL (TANPA JPL)
@@ -233,7 +249,15 @@ if uploaded_files:
                         kategori_nama = "SERAT OPTIK"
                         kode_ceklis = "BPBKF4"
                         
-                        loc_id = "BOP" if "BOGORPALEDANG" in text_flat or "PALEDANG" in text_flat else "BOO" if "BOGOR" in text_flat else "LOKASI"
+                        if "BOGORPALEDANG" in text_flat or "PALEDANG" in text_flat: loc_id = "BOP"
+                        elif "BOGOR" in text_flat: loc_id = "BOO"
+                        elif "CILEBUT" in text_flat: loc_id = "CLT"
+                        elif "BATUTULIS" in text_flat: loc_id = "BTT"
+                        elif "MASENG" in text_flat: loc_id = "MSG"
+                        elif "CIOMAS" in text_flat: loc_id = "COS"
+                        elif "CIGOMBONG" in text_flat: loc_id = "CGB"
+                        else: loc_id = "LOKASI"
+                        
                         assets_found.append({"id": "", "loc": loc_id})
 
 

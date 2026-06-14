@@ -44,79 +44,83 @@ def extract_pdf_data(name_only, file_bytes):
     thn_angka = tgl_match.group(3)
     prefix_periode = f"{thn_angka}-{bln_angka}"
     
+    # --- PENGATURAN AWAL JALUR STANDAR (ORISINAL) ---
+    target_keyword = None
+    if any(x in name_only for x in ["WESEL", "WLSE"]): 
+        target_keyword, kode_ceklis, kategori_nama = "WESEL", "BPBYE1", "WESEL"
+    elif any(x in name_only for x in ["AXLE", "COUNTER", "AXL"]): 
+        target_keyword, kode_ceklis, kategori_nama = "AXLE", "BPBYE7", "AXC"
+    elif any(x in name_only for x in ["SINYAL", "BLOK", "ZP"]): 
+        target_keyword, kode_ceklis, kategori_nama = "SINYAL", "BPBYE3", "SINYAL"
+
     try:
         images = convert_from_bytes(file_bytes, dpi=150, first_page=1, last_page=1)
         img = images[0].convert('L') 
         img = ImageOps.autocontrast(img) 
         
         width, height = img.size
-        # Crop area atas dimaksimalkan untuk menangkap judul dan tabel lokasi
         img_cropped = img.crop((0.0, 0.0, width*1.0, height*0.35))
         
         text_crop = pytesseract.image_to_string(img_cropped).upper()
         text_flat = re.sub(r'\s+', ' ', text_crop)
         debug_text = text_flat
         
-        # --- BLOK A: LOGIKA DOKUMEN SPESIAL (1 File = 1 Stasiun/Lokasi) ---
+        # --- DETEKSI LOKASI UMUM (DARI KOP SURAT) ---
+        general_loc = "LOKASI"
+        if "PALEDANG" in text_flat: general_loc = "BOP"
+        elif "BOGOR" in text_flat: general_loc = "BOO"
+        elif "CILEBUT" in text_flat: general_loc = "CLT"
+        elif "BATUTULIS" in text_flat: general_loc = "BTT"
+        elif "MASENG" in text_flat: general_loc = "MSG"
+        elif "CIOMAS" in text_flat: general_loc = "COS"
+        elif "CIGOMBONG" in text_flat: general_loc = "CGB"
+        elif "BOJONG" in text_flat or "BJD" in text_flat: general_loc = "BJD"
+        elif "CITAYAM" in text_flat: general_loc = "CTA"
+        elif "DEPOK" in text_flat: general_loc = "DP"
+
+        # --- PEMBAGIAN KATEGORI KHUSUS ---
         is_ptds = "TELEKOMUNIKASI DI STASIUN" in text_flat
         is_ptls = "TELEKOMUNIKASI DI LUAR STASIUN" in text_flat
         is_ptpp = "TELEKOMUNIKASI DI PINTU PERLINTASAN" in text_flat
         is_catudaya = "CATU DAYA" in text_flat
-        is_serat_optik = "SERAT OPTIK" in text_flat
         is_pdse = "PERALATAN DALAM PERSINYALAN ELEKTRIK" in text_flat
+        is_point_lock = "POINT LOCK" in text_flat or "PENGAMAN WESEL" in text_flat
         
-        if any([is_ptds, is_ptls, is_ptpp, is_catudaya, is_serat_optik, is_pdse]):
-            # 1. Tentukan ID & Kode Ceklis
+        is_serat_optik = "SERAT OPTIK" in text_flat or "SERAT OPTIK" in name_only
+        is_so_jpl = is_serat_optik and ("JPL" in name_only or "JPL" in text_flat)
+        is_so_normal = is_serat_optik and not is_so_jpl
+        
+        # --- JALUR A: PENCEGATAN DOKUMEN SPESIAL (1 FILE / LOKASI) ---
+        if any([is_ptds, is_ptls, is_ptpp, is_catudaya, is_pdse, is_point_lock, is_so_normal]):
+            loc_code = general_loc
+            kategori_nama = "" 
+            
             if is_ptds:
                 aid, kode_ceklis = "PTDS", "BPBKS15"
             elif is_ptls:
                 aid, kode_ceklis = "PTLS", "BPBKS16"
             elif is_ptpp:
                 aid, kode_ceklis = "PTPP", "BPBKS17"
+                match_jpl = re.search(r'JPL\s+\d+\b(?:\s+[A-Z\-]+)?', text_flat)
+                if match_jpl: loc_code = match_jpl.group(0).strip()
             elif is_catudaya:
                 aid, kode_ceklis = "CATUDAYA", "BPBYE14"
-            elif is_serat_optik:
-                aid, kode_ceklis = "SERAT OPTIK", "BPBKF4"
             elif is_pdse:
                 aid, kode_ceklis = "PDSE", "BPBYE2"
-                
-            loc_code = "LOKASI"
+            elif is_so_normal:
+                aid, kode_ceklis = "SERAT OPTIK", "BPBKF4"
+            elif is_point_lock:
+                match_wesel = re.search(r'W\d+', text_flat)
+                aid = match_wesel.group(0).strip() if match_wesel else "WESEL"
+                kode_ceklis = "BPBYE1"
+                kategori_nama = "WPENGAMAN"
+
+            assets_found.append({"id": aid, "loc": loc_code})
             
-            # 2. Tentukan Lokasi
-            if is_ptpp:
-                # Regex aman untuk JPL (Wajib spasi, bebas jumlah digit angka)
-                match_jpl = re.search(r'JPL\s+\d+\b(?:\s+[A-Z\-]+)?', text_flat)
-                if match_jpl:
-                    loc_code = match_jpl.group(0).strip()
-            elif is_ptds or is_ptls:
-                # Prioritas Telkom Arah Sukabumi
-                if "PALEDANG" in text_flat: loc_code = "BOP"
-                elif "BOGOR" in text_flat: loc_code = "BOO"
-                elif "CILEBUT" in text_flat: loc_code = "CLT"
-                elif "BATUTULIS" in text_flat: loc_code = "BTT"
-                elif "MASENG" in text_flat: loc_code = "MSG"
-                elif "CIOMAS" in text_flat: loc_code = "COS"
-                elif "CIGOMBONG" in text_flat: loc_code = "CGB"
-            else: 
-                # Standar PDSE, Catu Daya, Serat Optik
-                if "BOGOR" in text_flat: loc_code = "BOO"
-                elif "CILEBUT" in text_flat: loc_code = "CLT"
-                elif "BOJONG" in text_flat or "BJD" in text_flat: loc_code = "BJD"
-                elif "CITAYAM" in text_flat: loc_code = "CTA"
-                elif "DEPOK" in text_flat: loc_code = "DP"
-                
-            kategori_nama = "" # Kosongkan agar penamaan dinamis rapi
-            assets_found = [{"id": aid, "loc": loc_code}]
-            
-        # --- BLOK B: LOGIKA DOKUMEN STANDAR (Multi-Aset dalam Tabel) ---
+        # --- JALUR B: SISTEM MULTI-ASET ORISINAL (WESEL, AXLE, SINYAL) ---
         else:
-            target_keyword = None
-            if any(x in name_only for x in ["WESEL", "WLSE"]): 
-                target_keyword, kode_ceklis, kategori_nama = "WESEL", "BPBYE1", "WESEL"
-            elif any(x in name_only for x in ["AXLE", "COUNTER", "AXL"]): 
-                target_keyword, kode_ceklis, kategori_nama = "AXLE", "BPBYE7", "AXC"
-            elif any(x in name_only for x in ["SINYAL", "BLOK", "ZP"]): 
-                target_keyword, kode_ceklis, kategori_nama = "SINYAL", "BPBYE3", "SINYAL"
+            if is_so_jpl:
+                target_keyword, kode_ceklis, kategori_nama = "SO_JPL", "BPBKF4", "SERAT OPTIK"
                 
             if target_keyword:
                 lines = [line.strip() for line in text_crop.split('\n') if line.strip()]
@@ -126,28 +130,41 @@ def extract_pdf_data(name_only, file_bytes):
                          "MASUK", "KELUAR", "MUKA", "DAN", "LANGSIR", "JALAN"]
 
                 for line in lines:
-                    if any(k in line for k in ["SINYAL", "BLOK", "WESEL", "AXLE", "COUNTER"]):
-                        if any(judul in line for judul in ["BULANAN", "MINGGUAN", "TAHUNAN"]):
-                            continue
-                        clean = line.split(":")[-1].strip() if ":" in line else line.strip()
-                        words = clean.replace(".", " ").split()
-                        final = [w for w in words if w not in noise]
+                    if any(judul in line for judul in ["BULANAN", "MINGGUAN", "TAHUNAN"]):
+                        continue
                         
-                        if final:
-                            if final[0] == "ZP" and len(final) > 1 and any(char.isdigit() for char in final[1]):
-                                aid = f"{final[0]} {final[1]}"
-                                loc_id = " ".join(final[2:]) if len(final) > 2 else "LOKASI"
-                            else:
-                                aid = final[0]
-                                loc_id = " ".join(final[1:]) if len(final) > 1 else "LOKASI"
+                    if target_keyword == "SO_JPL":
+                        if "JPL" in line:
+                            match_jpl = re.search(r'JPL\s+\d+\b(?:\s+[A-Z\-]+)?', line)
+                            if match_jpl:
+                                jpl_str = match_jpl.group(0).strip()
+                                parts = jpl_str.split(" ", 2)
+                                aid_jpl = f"{parts[0]} {parts[1]}" if len(parts) >= 2 else parts[0]
+                                # Ambil lokasi dari Kop jika di dalam tabel tidak ada
+                                loc_jpl = parts[2] if len(parts) == 3 else general_loc 
+                                assets_found.append({"id": aid_jpl, "loc": loc_jpl})
+                    else:
+                        # LOGIKA ORISINAL 100% UNTUK WESEL & SINYAL
+                        if any(k in line for k in ["SINYAL", "BLOK", "WESEL", "AXLE", "COUNTER"]):
+                            clean = line.split(":")[-1].strip() if ":" in line else line.strip()
+                            words = clean.replace(".", " ").split()
+                            final = [w for w in words if w not in noise]
                             
-                            loc_id = loc_id.replace("BUD", "BJD").strip()
-                            
-                            if target_keyword == "WESEL" and not aid.startswith("W"): aid = f"W{aid}"
-                            elif target_keyword == "AXLE" and not aid.startswith("ZP"): aid = f"ZP{aid}"
-                            assets_found.append({"id": aid, "loc": loc_id})
+                            if final:
+                                if final[0] == "ZP" and len(final) > 1 and any(char.isdigit() for char in final[1]):
+                                    aid = f"{final[0]} {final[1]}"
+                                    loc_id = " ".join(final[2:]) if len(final) > 2 else "LOKASI"
+                                else:
+                                    aid = final[0]
+                                    loc_id = " ".join(final[1:]) if len(final) > 1 else "LOKASI"
+                                
+                                loc_id = loc_id.replace("BUD", "BJD").strip()
+                                
+                                if target_keyword == "WESEL" and not aid.startswith("W"): aid = f"W{aid}"
+                                elif target_keyword == "AXLE" and not aid.startswith("ZP"): aid = f"ZP{aid}"
+                                assets_found.append({"id": aid, "loc": loc_id})
             else:
-                ocr_error = "Bukan dokumen ceklis yang dikenali (Spesial maupun Multi-Aset)."
+                ocr_error = "Bukan dokumen ceklis yang dikenali."
                 
         del img, img_cropped, images
         gc.collect() 
@@ -182,7 +199,7 @@ with col1:
 
     if st.button("🗑️ Hapus Semua File", use_container_width=True):
         st.session_state["file_uploader_key"] += 1
-        extract_pdf_data.clear() # Bersihkan memori cache agar fresh
+        extract_pdf_data.clear()
         st.rerun()
 
     uploaded_files = st.file_uploader(
@@ -212,7 +229,6 @@ if uploaded_files:
             for idx, f in enumerate(uploaded_files):
                 progress_text.info(f"🚂 Memeriksa File {idx+1}/{len(uploaded_files)}...")
                 
-                # Pemanggilan fungsi deteksi (Seketika jika file sudah di-cache)
                 tgl_full, prefix_periode, kode_ceklis, kategori_nama, assets_found, ocr_error, debug_text = extract_pdf_data(f.name.upper(), f.getvalue())
                 
                 if debug_mode and debug_text:
@@ -228,13 +244,11 @@ if uploaded_files:
                         aid_clean = asset["id"].strip()
                         aloc_clean = asset["loc"].strip()
                         
-                        # --- PERAKITAN NAMA FILE ---
                         if format_eksklusif:
                             new_name = f"{prefix_periode}_Resor 1.21 Boo_{kode_ceklis}_{jenis_kegiatan}_{kategori_nama}_{aid_clean}_{aloc_clean}_{tgl_full}.pdf"
                         else:
                             new_name = f"{jenis_kegiatan.upper()} {kategori_nama} {aid_clean} {aloc_clean} {tgl_full}.pdf"
 
-                        # Membersihkan sisa spasi atau underscore ganda (Efek dari kategori yang dikosongkan)
                         new_name = new_name.replace("__", "_").replace("  ", " ")
 
                         if new_name not in unique_filenames:
